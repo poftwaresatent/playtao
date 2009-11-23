@@ -62,7 +62,10 @@ taoNodeRoot * parse_urdf_file(char const * filename, std::string const & tao_roo
   if ( ! urdf_model.initXml(&urdf_xml)) {
     throw runtime_error("parse_urdf_file(" + string(filename) + "): urdf::Model::initXml() failed");
   }
-  taoNodeRoot * root(wbc::urdf_to_tao(urdf_model, tao_root_name, tao_id_to_link_name_map));
+  taoNodeRoot * root(urdf_to_tao::convert(urdf_model,
+					  tao_root_name,
+					  urdf_to_tao::DefaultLinkFilter(),
+					  tao_id_to_link_name_map));
   return root;
 }
 
