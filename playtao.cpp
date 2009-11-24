@@ -40,10 +40,18 @@
 #include <gfx/Mousehandler.hpp>
 #include <gfx/gltrackball.h>
 
+#include <boost/shared_ptr.hpp>
+
+#include <fstream>
 #include <err.h>
 #include <signal.h>
 
+#ifdef HAVE_URDF
+# include <urdf/model.h>
+#endif
+
 using namespace gfx;
+using namespace boost;
 using namespace std;
 
 #define USE_DEPTH_BUFFER
@@ -62,7 +70,11 @@ static int winheight(400);
 static bool step(true);
 static bool continuous(false);
 static int verbosity(1);
+static string sai_filename("");
+static string urdf_filename("");
+static string filter_filename("");
 
+static void parse_options(int argc, char ** argv);
 static void init_glut(int * argc, char ** argv, int width, int height);
 static void reshape(int width, int height);
 static void draw();
@@ -74,6 +86,21 @@ static void cleanup(void);
 static void handle(int signum);
 
 static taoNodeRoot * create_pendulum();
+
+namespace {
+  
+  class FlatFileLinkFilter: public urdf_to_tao::DefaultLinkFilter {
+  public:
+    void Load(std::string const & filename) throw(std::runtime_error);
+    std::string const & GetRootName() const;
+    virtual bool isFixed(urdf::Link const & urdf_link) const;
+    
+  protected:
+    std::string m_root_name;
+    std::set<std::string> m_nonfixed;
+  };
+  
+}
 
 
 int main(int argc, char ** argv)
@@ -91,32 +118,37 @@ int main(int argc, char ** argv)
   trackball = gltrackball_init();
   std::vector<std::string> id_to_link_name; // only for URDF -> TAO conversion though...
   
-  if (argc > 1) {
-    cout << "attempting to load TAO tree from " << argv[1] << "\n";
-    try {
-      root = parse_sai_xml_file(argv[1]);
+  parse_options(argc, argv);
+  
+  try {
+    
+    if ( ! sai_filename.empty()) {
+      cout << "loading SAI file " << sai_filename << "\n";
+      root = parse_sai_xml_file(sai_filename.c_str());
     }
-    catch (std::runtime_error const & ee) {
-      cerr << "EXCEPTION: " << ee.what() << "\n";
-      root = 0;
-    }
-    if (0 == root) {
-      cerr << "no TAO tree yet ...trying parse_urdf_file() instead...\n";
-      try {
-	string tao_root_name("world");
-	if (argc > 2)
-	  tao_root_name = argv[2];
-	root = parse_urdf_file(argv[1], tao_root_name, &id_to_link_name);
+    
+    else if ( ! urdf_filename.empty()) {
+      shared_ptr<FlatFileLinkFilter> link_filter;
+      string root_name("world");
+      if ( ! filter_filename.empty()) {
+	cout << "loading link filter file " << filter_filename << "\n";
+	link_filter.reset(new FlatFileLinkFilter());
+	link_filter->Load(filter_filename);
+	root_name = link_filter->GetRootName();
       }
-      catch (std::runtime_error const & ee) {
-	cerr << "EXCEPTION: " << ee.what() << "\n";
-	return 42;
-      }
+      cout << "root name is " << root_name << "\n"
+	   << "loading URDF file " << urdf_filename << "\n";      
+      root = parse_urdf_file(urdf_filename.c_str(), root_name, link_filter.get(), &id_to_link_name);
     }
+    
+    else {
+      cout << "creating builtin TAO tree\n";
+      root = create_pendulum();
+    }
+    
   }
-  else {
-    cout << "creating builtin TAO tree\n";
-    root = create_pendulum();
+  catch (std::runtime_error const & ee) {
+    errx(EXIT_FAILURE, "EXCEPTION: %s", ee.what());
   }
   
   if (verbosity >= 1) {
@@ -412,4 +444,128 @@ taoNodeRoot * create_pendulum()
   taoNode * mini_ball(create_ball(small_ball, 3, 0.125, 0.04, 0.01, M_PI/4));
   
   return root;
+}
+
+
+static void usage(ostream & os)
+{
+  os << "   -h               help (this message)\n"
+     << "   -v               increase verbosity\n"
+     << "   -s <SAI file>    load SAI file (takes precedence)\n"
+     << "   -u <URDF file>   load URDF file (unless a SAI file was specified, too)\n"
+     << "   -f <filter file> load a link filter for the URDF conversion (only used with -u)\n";
+}
+
+
+static void parse_options(int argc, char ** argv)
+{
+  for (int ii(1); ii < argc; ++ii) {
+    if ((strlen(argv[ii]) < 2) || (argv[ii][0] != '-')) {
+      usage(cerr);
+      errx(EXIT_FAILURE, "problem with option '%s'", argv[ii]);
+    }
+    
+    switch (argv[ii][1]) {
+    case 'h':
+      usage(cout);
+      exit(EXIT_SUCCESS);
+    case 'v':
+      ++verbosity;
+      if ((strlen(argv[ii]) > 2) && ('v' == argv[ii][2]))
+	++verbosity;
+      if ((strlen(argv[ii]) > 3) && ('v' == argv[ii][3]))
+	++verbosity;
+      break;
+    case 's':
+      ++ii;
+      if (ii >= argc) {
+	usage(cerr);
+	errx(EXIT_FAILURE, "-s requires an option (see -h for more info)");
+      }
+      sai_filename = argv[ii];
+      break;
+    case 'u':
+      ++ii;
+      if (ii >= argc) {
+	usage(cerr);
+	errx(EXIT_FAILURE, "-u requires an option (see -h for more info)");
+      }
+      urdf_filename = argv[ii];
+      break;
+    case 'f':
+      ++ii;
+      if (ii >= argc) {
+	usage(cerr);
+	errx(EXIT_FAILURE, "-f requires an option (see -h for more info)");
+      }
+      filter_filename = argv[ii];
+      break;
+    default:
+      usage(cerr);
+      errx(EXIT_FAILURE, "problem with option '%s'", argv[ii]);
+    }
+  }
+}
+
+
+namespace {
+  
+  
+  void FlatFileLinkFilter::
+  Load(std::string const & filename) throw(std::runtime_error)
+  {
+    ifstream config(filename.c_str());
+    if ( ! config) {
+      throw runtime_error("FlatFileLinkFilter::Load(" + filename + "): could not open file");
+    }
+    
+    string token;
+    while (config >> token) {
+      if (token[0] == '#'){
+	config.ignore(numeric_limits<streamsize>::max(), '\n');
+	continue;
+      }
+      if (m_root_name.empty()) {
+	m_root_name = token;
+      }
+      m_nonfixed.insert(token);
+    }
+    
+    if (m_root_name.empty()) {
+      throw runtime_error("FlatFileLinkFilter::Load(" + filename + "): no root name specified in file");
+    }
+    
+    if (m_nonfixed.empty()) {
+      cout << "WARNING: FlatFileLinkFilter::Load(" << filename << "): no non-fixed joints specified in file\n";
+    }
+  }
+  
+  
+  std::string const & FlatFileLinkFilter::
+  GetRootName() const
+  {
+    return m_root_name;
+  }
+  
+  
+  bool FlatFileLinkFilter::
+  isFixed(urdf::Link const & urdf_link) const
+  {
+#ifndef HAVE_URDF
+    
+    return urdf_to_tao::DefaultLinkFilter::isFixed(urdf_link);
+    
+#else // HAVE_URDF
+
+    if (urdf_to_tao::DefaultLinkFilter::isFixed(urdf_link)) {
+      return true;
+    }
+    if (m_nonfixed.find(urdf_link.name) != m_nonfixed.end()) {
+      return false;
+    }
+    return true;
+    
+#endif // HAVE_URDF
+  }
+  
 }

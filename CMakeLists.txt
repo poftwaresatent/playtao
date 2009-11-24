@@ -19,6 +19,7 @@ wbc_getvars()
 
 project (playtao)
 set (CMAKE_VERBOSE_MAKEFILE ON)
+add_definitions (-DHAVE_LOG4CXX)
 
 if (WIN32)
   message ("Detected Microsoft Windows")

@@ -43,6 +43,7 @@ taoNodeRoot * parse_sai_xml_file(char const * filename) throw(std::runtime_error
 #ifndef HAVE_URDF
 
 taoNodeRoot * parse_urdf_file(char const * filename, std::string const & tao_root_name,
+			      urdf_to_tao::LinkFilter const * opt_link_filter,
 			      std::vector<std::string> * tao_id_to_link_name_map) throw(std::runtime_error)
 {
   throw runtime_error("parse_urdf_file(" + string(filename)
@@ -54,6 +55,7 @@ taoNodeRoot * parse_urdf_file(char const * filename, std::string const & tao_roo
 #include <urdf/model.h>
 
 taoNodeRoot * parse_urdf_file(char const * filename, std::string const & tao_root_name,
+			      urdf_to_tao::LinkFilter const * opt_link_filter,
 			      std::vector<std::string> * tao_id_to_link_name_map) throw(std::runtime_error)
 {
   TiXmlDocument urdf_xml;
@@ -62,10 +64,19 @@ taoNodeRoot * parse_urdf_file(char const * filename, std::string const & tao_roo
   if ( ! urdf_model.initXml(&urdf_xml)) {
     throw runtime_error("parse_urdf_file(" + string(filename) + "): urdf::Model::initXml() failed");
   }
-  taoNodeRoot * root(urdf_to_tao::convert(urdf_model,
-					  tao_root_name,
-					  urdf_to_tao::DefaultLinkFilter(),
-					  tao_id_to_link_name_map));
+  taoNodeRoot * root(0);
+  if (opt_link_filter) {
+    root = urdf_to_tao::convert(urdf_model,
+				tao_root_name,
+				*opt_link_filter,
+				tao_id_to_link_name_map);
+  }
+  else {
+    root = urdf_to_tao::convert(urdf_model,
+				tao_root_name,
+				urdf_to_tao::DefaultLinkFilter(),
+				tao_id_to_link_name_map);
+  }
   return root;
 }
 
