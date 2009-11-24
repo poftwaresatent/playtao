@@ -87,21 +87,6 @@ static void handle(int signum);
 
 static taoNodeRoot * create_pendulum();
 
-namespace {
-  
-  class FlatFileLinkFilter: public urdf_to_tao::DefaultLinkFilter {
-  public:
-    void Load(std::string const & filename) throw(std::runtime_error);
-    std::string const & GetRootName() const;
-    virtual bool isFixed(urdf::Link const & urdf_link) const;
-    
-  protected:
-    std::string m_root_name;
-    std::set<std::string> m_nonfixed;
-  };
-  
-}
-
 
 int main(int argc, char ** argv)
 {
@@ -128,11 +113,11 @@ int main(int argc, char ** argv)
     }
     
     else if ( ! urdf_filename.empty()) {
-      shared_ptr<FlatFileLinkFilter> link_filter;
+      shared_ptr<urdf_to_tao::FlatFileLinkFilter> link_filter;
       string root_name("world");
       if ( ! filter_filename.empty()) {
 	cout << "loading link filter file " << filter_filename << "\n";
-	link_filter.reset(new FlatFileLinkFilter());
+	link_filter.reset(new urdf_to_tao::FlatFileLinkFilter());
 	link_filter->Load(filter_filename);
 	root_name = link_filter->GetRootName();
       }
@@ -505,67 +490,4 @@ static void parse_options(int argc, char ** argv)
       errx(EXIT_FAILURE, "problem with option '%s'", argv[ii]);
     }
   }
-}
-
-
-namespace {
-  
-  
-  void FlatFileLinkFilter::
-  Load(std::string const & filename) throw(std::runtime_error)
-  {
-    ifstream config(filename.c_str());
-    if ( ! config) {
-      throw runtime_error("FlatFileLinkFilter::Load(" + filename + "): could not open file");
-    }
-    
-    string token;
-    while (config >> token) {
-      if (token[0] == '#'){
-	config.ignore(numeric_limits<streamsize>::max(), '\n');
-	continue;
-      }
-      if (m_root_name.empty()) {
-	m_root_name = token;
-      }
-      m_nonfixed.insert(token);
-    }
-    
-    if (m_root_name.empty()) {
-      throw runtime_error("FlatFileLinkFilter::Load(" + filename + "): no root name specified in file");
-    }
-    
-    if (m_nonfixed.empty()) {
-      cout << "WARNING: FlatFileLinkFilter::Load(" << filename << "): no non-fixed joints specified in file\n";
-    }
-  }
-  
-  
-  std::string const & FlatFileLinkFilter::
-  GetRootName() const
-  {
-    return m_root_name;
-  }
-  
-  
-  bool FlatFileLinkFilter::
-  isFixed(urdf::Link const & urdf_link) const
-  {
-#ifndef HAVE_URDF
-    
-    return urdf_to_tao::DefaultLinkFilter::isFixed(urdf_link);
-    
-#else // HAVE_URDF
-
-    if (urdf_to_tao::DefaultLinkFilter::isFixed(urdf_link)) {
-      return true;
-    }
-    if (m_nonfixed.find(urdf_link.name) != m_nonfixed.end()) {
-      return false;
-    }
-    return true;
-    
-#endif // HAVE_URDF
-  }
-  
 }
