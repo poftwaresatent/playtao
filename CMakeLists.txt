@@ -128,7 +128,7 @@ if (TRY_ROS)
   endif (NOT $ENV{ROS_ROOT} STREQUAL "")
 
   if (NOT HAVE_ROS)
-    message ("ROS not found, cannot handle KDL")
+    message ("ROS not found, cannot handle URDF")
   endif (NOT HAVE_ROS)
 
 endif (TRY_ROS)

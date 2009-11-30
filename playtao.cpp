@@ -45,6 +45,7 @@
 #include <fstream>
 #include <err.h>
 #include <signal.h>
+#include <cstring>
 
 #ifdef HAVE_URDF
 # include <urdf/model.h>
