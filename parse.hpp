@@ -41,6 +41,7 @@ taoNodeRoot * parse_sai_xml_file(char const * filename) throw(std::runtime_error
 
 taoNodeRoot * parse_urdf_file(char const * filename, std::string const & tao_root_name,
 			      urdf_to_tao::LinkFilter const * opt_link_filter,
-			      std::vector<std::string> * tao_id_to_link_name_map) throw(std::runtime_error);
+			      std::vector<std::string> * tao_id_to_link_name_map,
+			      std::vector<std::string> * tao_id_to_joint_name_map) throw(std::runtime_error);
 
 #endif // PLAYTAO_PARSE_HPP

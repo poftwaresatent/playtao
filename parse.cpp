@@ -44,7 +44,8 @@ taoNodeRoot * parse_sai_xml_file(char const * filename) throw(std::runtime_error
 
 taoNodeRoot * parse_urdf_file(char const * filename, std::string const & tao_root_name,
 			      urdf_to_tao::LinkFilter const * opt_link_filter,
-			      std::vector<std::string> * tao_id_to_link_name_map) throw(std::runtime_error)
+			      std::vector<std::string> * tao_id_to_link_name_map,
+			      std::vector<std::string> * tao_id_to_joint_name_map) throw(std::runtime_error)
 {
   throw runtime_error("parse_urdf_file(" + string(filename)
 		      + "): support for ROS urdf not built in");
@@ -56,7 +57,8 @@ taoNodeRoot * parse_urdf_file(char const * filename, std::string const & tao_roo
 
 taoNodeRoot * parse_urdf_file(char const * filename, std::string const & tao_root_name,
 			      urdf_to_tao::LinkFilter const * opt_link_filter,
-			      std::vector<std::string> * tao_id_to_link_name_map) throw(std::runtime_error)
+			      std::vector<std::string> * tao_id_to_link_name_map,
+			      std::vector<std::string> * tao_id_to_joint_name_map) throw(std::runtime_error)
 {
   TiXmlDocument urdf_xml;
   urdf_xml.LoadFile(filename);
@@ -69,13 +71,15 @@ taoNodeRoot * parse_urdf_file(char const * filename, std::string const & tao_roo
     root = urdf_to_tao::convert(urdf_model,
 				tao_root_name,
 				*opt_link_filter,
-				tao_id_to_link_name_map);
+				tao_id_to_link_name_map,
+				tao_id_to_joint_name_map);
   }
   else {
     root = urdf_to_tao::convert(urdf_model,
 				tao_root_name,
 				urdf_to_tao::DefaultLinkFilter(),
-				tao_id_to_link_name_map);
+				tao_id_to_link_name_map,
+				tao_id_to_joint_name_map);
   }
   return root;
 }

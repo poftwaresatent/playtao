@@ -103,6 +103,7 @@ int main(int argc, char ** argv)
   wbcnet::configure_logging();
   trackball = gltrackball_init();
   std::vector<std::string> id_to_link_name; // only for URDF -> TAO conversion though...
+  std::vector<std::string> id_to_joint_name; // only for URDF -> TAO conversion though...
   
   parse_options(argc, argv);
   
@@ -124,7 +125,8 @@ int main(int argc, char ** argv)
       }
       cout << "root name is " << root_name << "\n"
 	   << "loading URDF file " << urdf_filename << "\n";      
-      root = parse_urdf_file(urdf_filename.c_str(), root_name, link_filter.get(), &id_to_link_name);
+      root = parse_urdf_file(urdf_filename.c_str(), root_name, link_filter.get(),
+			     &id_to_link_name, &id_to_joint_name);
     }
     
     else {
@@ -138,7 +140,7 @@ int main(int argc, char ** argv)
   }
   
   if (verbosity >= 1) {
-    wbc::dump_tao_tree(cout, root, "FINAL  ", false, &id_to_link_name);
+    wbc::dump_tao_tree(cout, root, "FINAL  ", false, &id_to_link_name, &id_to_joint_name);
   }
   
   if (0 == root)
@@ -221,7 +223,7 @@ void timer(int handle)
     
     ++tick;
     if (verbosity >= 2) {
-      wbc::dump_tao_tree(cout, root, "", true, 0);
+      wbc::dump_tao_tree(cout, root, "", true, 0, 0);
     }
   }
   
