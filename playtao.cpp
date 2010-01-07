@@ -29,6 +29,8 @@
 #include <wbc/util/urdf_to_tao.hpp>
 #include <wbc/util/dump.hpp>
 #include <wbc/util/tao_util.hpp>
+#include <wbc/core/RobotAPI.hpp>
+#include <wbc/core/RobotFactory.hpp>
 #include <wbc/core/Plugin.hpp>
 #include <wbc/bin/builtin.hpp>
 #include <wbcnet/log.hpp>
@@ -69,6 +71,7 @@ static taoNodeRoot * tao_root(0);	// this gets deleted for us by the TAOContaine
 static deVector3 gravity(0, 0, -9.81);
 static int ndof(0);
 static wbc::Extensions * wbc_extensions(0);
+static std::string robot_spec("");
 static wbc::RobotAPI * robot_api(0);
 static std::string transform_filename("");
 static std::ofstream * transform_file(0);
@@ -82,7 +85,7 @@ static int winheight(400);
 
 static bool step(true);
 static bool continuous(false);
-static int verbosity(1);
+static int verbosity(0);
 static string sai_filename("");
 static string urdf_filename("");
 static string filter_filename("");
@@ -117,13 +120,15 @@ int main(int argc, char ** argv)
   std::vector<std::string> id_to_link_name; // only for URDF -> TAO conversion though...
   std::vector<std::string> id_to_joint_name; // only for URDF -> TAO conversion though...
   
-  wbcnet::manual_logging_verbosity(2);
-  wbc_extensions = wbc::load_extensions(0);
-  return 0;
-  
   parse_options(argc, argv);
-  
+  wbcnet::manual_logging_verbosity(verbosity);
+  wbc_extensions = wbc::load_extensions(0);
+  wbc_extensions->AddRobot("foo", create_robot_factory());
+
   try {
+    if ( ! robot_spec.empty()) {
+      robot_api = wbc_extensions->robot_registry->parseCreate(robot_spec, 0);
+    }
     
     if ( ! sai_filename.empty()) {
       cout << "loading SAI file " << sai_filename << "\n";
@@ -153,7 +158,7 @@ int main(int argc, char ** argv)
     }
     
   }
-  catch (std::runtime_error const & ee) {
+  catch (std::exception const & ee) {
     errx(EXIT_FAILURE, "EXCEPTION: %s", ee.what());
   }
   
@@ -577,12 +582,7 @@ void parse_options(int argc, char ** argv)
 	usage(cerr);
 	errx(EXIT_FAILURE, "-R requires an argument (see -h for more info)");
       }
-      try {
-	robot_api = create_robot(argv[ii]);
-      }
-      catch (std::exception const & ee) {
-	errx(EXIT_FAILURE, "EXCEPTION while creating robot from spec \"%s\": %s", argv[ii], ee.what());
-      }
+      robot_spec = argv[ii];
       break;
     case 't':
       ++ii;

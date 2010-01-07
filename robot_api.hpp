@@ -28,8 +28,10 @@
 #define PLAYTAO_ROBOT_API_HPP
 
 #include <wbc/core/RobotAPI.hpp>
+#include <wbc/core/RobotFactory.hpp>
 #include <stdexcept>
 
 wbc::RobotAPI * create_robot(std::string const & spec);
+wbc::RobotFactory * create_robot_factory();
 
 #endif // PLAYTAO_ROBOT_API_HPP

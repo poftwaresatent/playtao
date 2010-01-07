@@ -27,12 +27,14 @@
 #include "robot_api.hpp"
 #include <saimatrix/SAIVector.h>
 #include <saimatrix/SAIMatrix.h>
+#include <wbcnet/strutil.hpp>
 #include <fstream>
 #include <sstream>
 #include <sys/time.h>
 
 
 namespace {
+  
   
   class RobotAPI
     : public wbc::RobotAPI
@@ -96,10 +98,39 @@ namespace {
     std::ifstream m_fstream;
   };
   
+  
+  class RobotFactory
+    : public wbc::RobotFactory
+  {
+  public:
+    RobotAPI * parse(std::string const & spec, wbc::ServoInspector * servo_inspector)
+    {
+      string filename;
+      string tail;
+      if ( ! sfl::splitstring(spec, ':', filename, tail)) {
+	filename = "joint_positions.txt";
+      }
+      return new RobotAPI(filename);
+    }
+    
+    void dumpHelp(std::string const & prefix, std::ostream & os) const
+    {
+      os << prefix << "spec = [ filename ]\n"
+	 << prefix << "  default = joint_positions.txt\n";
+    }
+    
+  };
+  
 }
 
 
 wbc::RobotAPI * create_robot(std::string const & spec)
 {
   return new RobotAPI(spec);
+}
+
+
+wbc::RobotFactory * create_robot_factory()
+{
+  return new RobotFactory();
 }
