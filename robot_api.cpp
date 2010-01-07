@@ -37,7 +37,7 @@ namespace {
   
   
   class RobotAPI
-    : public wbc::RobotAPI
+    : public wbc::BidirectionalRobotAPI
   {
   public:
     RobotAPI(std::string const & filename)
@@ -93,6 +93,15 @@ namespace {
     virtual void shutdown() const {}
     
     
+    virtual bool writeSensors(SAIVector const & jointAngles, SAIVector const & jointVelocities,
+			      SAIMatrix const * opt_forces) { return true; }
+    
+    virtual bool readCommand(SAIVector & command)
+    {
+      command.zero();
+      return true;
+    }
+    
   protected:
     std::string const m_filename;
     std::ifstream m_fstream;
@@ -124,7 +133,7 @@ namespace {
 }
 
 
-wbc::RobotAPI * create_robot(std::string const & spec)
+wbc::BidirectionalRobotAPI * create_robot(std::string const & spec)
 {
   return new RobotAPI(spec);
 }

@@ -54,6 +54,7 @@
 #include <err.h>
 #include <signal.h>
 #include <cstring>
+#include <sys/time.h>
 
 #ifdef HAVE_URDF
 # include <urdf/model.h>
@@ -63,7 +64,7 @@ using namespace gfx;
 using namespace boost;
 using namespace std;
 
-#define USE_DEPTH_BUFFER
+#undef USE_DEPTH_BUFFER
 
 
 static TAOContainer * tao_container(0);
@@ -72,7 +73,9 @@ static deVector3 gravity(0, 0, -9.81);
 static int ndof(0);
 static wbc::Extensions * wbc_extensions(0);
 static std::string robot_spec("");
+static std::string servo_spec("");
 static wbc::RobotAPI * robot_api(0);
+static wbc::BidirectionalRobotAPI * servo_api(0);
 static std::string transform_filename("");
 static std::ofstream * transform_file(0);
 
@@ -122,12 +125,20 @@ int main(int argc, char ** argv)
   
   parse_options(argc, argv);
   wbcnet::manual_logging_verbosity(verbosity);
-  wbc_extensions = wbc::load_extensions(0);
-  wbc_extensions->AddRobot("foo", create_robot_factory());
 
   try {
+    
+    wbc_extensions = wbc::load_extensions(0);
+    wbc_extensions->AddRobot("foo", create_robot_factory());
+    
     if ( ! robot_spec.empty()) {
       robot_api = wbc_extensions->robot_registry->parseCreate(robot_spec, 0);
+    }
+    if ( ! servo_spec.empty()) {
+      servo_api = wbc_extensions->robot_registry->parseCreateBidirectional(servo_spec, 0);
+    }
+    if (robot_api && servo_api) {
+      errx(EXIT_FAILURE, "you specified -R and -S, that makes no sense");
     }
     
     if ( ! sai_filename.empty()) {
@@ -241,26 +252,61 @@ void keyboard(unsigned char key, int x, int y)
 }
 
 
-void set_node_state(taoDNode * node, SAIVector const & pos, int & index)
+/** \note \c pos needs to point to a sufficiently large array, this
+    function will happily read over its end otherwise. */
+void set_node_state(taoDNode * node, double const * pos)
 {
   for (taoJoint * joint(node->getJointList()); 0 != joint; joint = joint->getNext()) {
     // Well, at first it seems weird that taoJoint::setQ() etc expect
     // a pointer, but this actually makes sense because a joint can
     // have more than one degree of freedom, and the pointer semantics
     // allow us to pass in an array.
-    double pp(0);
-    if (pos.size() > index) {
-      pp = pos[index];
-    }
-    joint->setQ(&pp);
-    pp = 0;
-    joint->setDQ(&pp);
-    joint->setDDQ(&pp);
-    joint->setTau(&pp);
-    ++index;
+    joint->setQ(pos);
+    joint->zeroDQ();
+    joint->zeroDDQ();
+    joint->zeroTau();
+    pos += joint->getDOF();
   }
   for (taoDNode * child(node->getDChild()); 0 != child; child = child->getDSibling()) {
-    set_node_state(child, pos, index);
+    set_node_state(child, pos);
+  }
+}
+
+
+/** \note \c pos and \c vel need to point to sufficiently large
+    arrays, this function will happily write over their ends
+    otherwise. */
+void get_node_state(taoDNode * node, double * pos, double * vel)
+{
+  for (taoJoint * joint(node->getJointList()); 0 != joint; joint = joint->getNext()) {
+    joint->getQ(pos);
+    joint->getDQ(vel);
+    int const jdof(joint->getDOF());
+    pos += jdof;
+    vel += jdof;
+  }
+  for (taoDNode * child(node->getDChild()); 0 != child; child = child->getDSibling()) {
+    get_node_state(child, pos, vel);
+  }
+}
+
+
+/** \note \c tau needs to point to a sufficiently large array, this
+    function will happily read over its end otherwise. */
+void add_node_command(taoDNode * node, double const * tau)
+{
+  for (taoJoint * joint(node->getJointList()); 0 != joint; joint = joint->getNext()) {
+    int const jdof(joint->getDOF());
+    std::vector<double> foo(jdof);
+    joint->getTau(&foo[0]);
+    for (int ii(0); ii < jdof; ++ii) {
+      foo[ii] += *tau;
+      ++tau;
+    }
+    joint->setTau(&foo[0]);
+  }
+  for (taoDNode * child(node->getDChild()); 0 != child; child = child->getDSibling()) {
+    add_node_command(child, tau);
   }
 }
 
@@ -277,28 +323,40 @@ static void dump_global_frames(std::ostream & os, taoDNode * node, std::string c
 bool update()
 {
   SAIVector pos(ndof);
+  SAIVector vel(ndof);
+  SAIVector tau(ndof);
+  struct timeval tstamp;
+  
   if (robot_api) {
-    SAIVector vel(ndof);
-    struct timeval tstamp;
     if ( ! robot_api->readSensors(pos, vel, tstamp, 0)) {
       cerr << "update(): robot_api->readSensors() failed\n";
       return false;
     }
-    int index(0);
-    set_node_state(tao_root, pos, index);
-    // // // could be even stricter: index should be exactly pos.size()...
-    // // if ((0 == index) || (pos.size() < index)) {
-    // //   errx(EXIT_FAILURE,
-    // // 	   "oops after set_node_state(): pos.size() is %d and index after traversal is %d",
-    // // 	   pos.size(), index);
-    // // }
+    if (pos.size() != ndof) {
+      cerr << "WARNING in update(): pos.size() is " << pos.size() << " but should be " << ndof << "\n";
+      pos.setSize(ndof, true);
+    }
+    set_node_state(tao_root, &pos[0]);
     taoDynamics::updateTransformation(tao_root);
   }
+
   else {
-    taoDynamics::fwdDynamics(tao_root, &gravity);
-  
+    if (servo_api) {
+      get_node_state(tao_root, &pos[0], &vel[0]);
+      if ( ! servo_api->writeSensors(pos, vel, 0)) {
+	errx(EXIT_FAILURE, "update(): servo_api->writeSensors() failed");
+      }
+      if ( ! servo_api->readCommand(tau)) {
+	errx(EXIT_FAILURE, "update(): servo_api->readTorques() failed");
+      }
+    }
+    
     static deFloat const dt(0.001);
     for (size_t ii(0); ii < 10; ++ii) {
+      taoDynamics::fwdDynamics(tao_root, &gravity);
+      if (servo_api) {
+	add_node_command(tao_root, &tau[0]);
+      }
       taoDynamics::integrate(tao_root, dt);
       taoDynamics::updateTransformation(tao_root);
     }
@@ -513,6 +571,7 @@ void usage(ostream & os)
      << "   -u <URDF file>   load URDF file (unless a SAI file was specified, too)\n"
      << "   -f <filter file> load a link filter for the URDF conversion (only used with -u)\n"
      << "   -R <robot spec>  retrieve joint angles from a robot at each tick\n"
+     << "   -S <servo spec>  retrieve torque commands from a servo at each tick\n"
      << "   -t <filename>    write joint angles and link transforms to file at each tick\n";
 }
 
@@ -583,6 +642,14 @@ void parse_options(int argc, char ** argv)
 	errx(EXIT_FAILURE, "-R requires an argument (see -h for more info)");
       }
       robot_spec = argv[ii];
+      break;
+    case 'S':
+      ++ii;
+      if (ii >= argc) {
+	usage(cerr);
+	errx(EXIT_FAILURE, "-S requires an argument (see -h for more info)");
+      }
+      servo_spec = argv[ii];
       break;
     case 't':
       ++ii;
