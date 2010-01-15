@@ -11,10 +11,18 @@
 
 cmake_minimum_required (VERSION 2.6)
 
-if ($ENV{WBC_ROOT} STREQUAL "")
-  message (FATAL_ERROR "The WBC_ROOT environment variable is not set. Did you bootstrap WBC and set your environment? See the stanford-wbc/README file and/or http://sourceforge.net/apps/trac/stanford-wbc/wiki/Installation for instructions.")
-endif ($ENV{WBC_ROOT} STREQUAL "")
-include ($ENV{WBC_ROOT}/share/wbc.cmake)
+if (NOT WBC_ROOT)
+  set (WBC_ROOT $ENV{WBC_ROOT})
+endif (NOT WBC_ROOT)
+if (NOT WBC_ROOT)
+  message (FATAL_ERROR "WBC_ROOT not set. For ROS setups, try adding -DWBC_ROOT=`rospack find stanford_wbc`/local to the CMake command line.")
+endif (NOT WBC_ROOT)
+if (EXISTS ${WBC_ROOT}/share/wbc.cmake)
+  include (${WBC_ROOT}/share/wbc.cmake)
+else (EXISTS ${WBC_ROOT}/share/wbc.cmake)
+  message ("WARNING ${WBC_ROOT}/share/wbc.cmake does not exist, trying ${WBC_ROOT}/wbc.cmake instead...")
+  include (${WBC_ROOT}/wbc.cmake)
+endif (EXISTS ${WBC_ROOT}/share/wbc.cmake)
 wbc_getvars()
 
 project (playtao)
