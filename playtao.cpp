@@ -58,7 +58,8 @@ using namespace std;
 #define USE_DEPTH_BUFFER
 
 
-static taoNodeRoot * root(0);
+static TAOContainer * tao_container(0);
+static taoNodeRoot * tao_root(0);	// this gets deleted for us by the TAOContainer dtor
 static deVector3 gravity(0, 0, -9.81);
 
 static const unsigned int timer_delay(100);
@@ -76,6 +77,7 @@ static string urdf_filename("");
 static string filter_filename("");
 static int n_iterations(-1);	// -1 means graphics mode, user presses 'q' to quit
 
+static void usage(ostream & os);
 static void parse_options(int argc, char ** argv);
 static void init_glut(int * argc, char ** argv, int width, int height);
 static void update_simulation();
@@ -87,8 +89,6 @@ static void mouse(int button, int state, int x, int y);
 static void motion(int x, int y);
 static void cleanup(void);
 static void handle(int signum);
-
-static taoNodeRoot * create_pendulum();
 
 
 int main(int argc, char ** argv)
@@ -112,7 +112,8 @@ int main(int argc, char ** argv)
     
     if ( ! sai_filename.empty()) {
       cout << "loading SAI file " << sai_filename << "\n";
-      root = parse_sai_xml_file(sai_filename.c_str());
+      tao_container = parse_sai_xml_file(sai_filename.c_str());
+      tao_root = tao_container->getRoot();
     }
     
     else if ( ! urdf_filename.empty()) {
@@ -126,13 +127,14 @@ int main(int argc, char ** argv)
       }
       cout << "root name is " << root_name << "\n"
 	   << "loading URDF file " << urdf_filename << "\n";      
-      root = parse_urdf_file(urdf_filename.c_str(), root_name, link_filter.get(),
-			     &id_to_link_name, &id_to_joint_name);
+      tao_container = parse_urdf_file(urdf_filename.c_str(), root_name, link_filter.get(),
+				      &id_to_link_name, &id_to_joint_name);
+      tao_root = tao_container->getRoot();
     }
     
     else {
-      cout << "creating builtin TAO tree\n";
-      root = create_pendulum();
+      usage(cerr);
+      errx(EXIT_FAILURE, "you have to specify a SAI or URDF file");
     }
     
   }
@@ -140,14 +142,14 @@ int main(int argc, char ** argv)
     errx(EXIT_FAILURE, "EXCEPTION: %s", ee.what());
   }
   
-  if (verbosity >= 1) {
-    wbc::dump_tao_tree(cout, root, "FINAL  ", false, &id_to_link_name, &id_to_joint_name);
-  }
-  
-  if (0 == root)
+  if (0 == tao_root)
     errx(EXIT_FAILURE, "oops, no TAO root after all that effort?");
   
-  taoDynamics::initialize(root);
+  if (verbosity >= 1) {
+    wbc::dump_tao_tree(cout, tao_root, "FINAL  ", false, &id_to_link_name, &id_to_joint_name);
+  }
+  
+  taoDynamics::initialize(tao_root);
   
   if (n_iterations < 0) {
     trackball = gltrackball_init();
@@ -218,17 +220,17 @@ void keyboard(unsigned char key, int x, int y)
 
 void update_simulation()
 {
-  taoDynamics::fwdDynamics(root, &gravity);
+  taoDynamics::fwdDynamics(tao_root, &gravity);
   
   static deFloat const dt(0.001);
   for (size_t ii(0); ii < 10; ++ii) {
-    taoDynamics::integrate(root, dt);
-    taoDynamics::updateTransformation(root);
+    taoDynamics::integrate(tao_root, dt);
+    taoDynamics::updateTransformation(tao_root);
   }
   
   ++tick;
   if (verbosity >= 2) {
-    wbc::dump_tao_tree(cout, root, "", true, 0, 0);
+    wbc::dump_tao_tree(cout, tao_root, "", true, 0, 0);
   }
 }
 
@@ -277,7 +279,7 @@ void cleanup(void)
   if (0 != trackball) {
     free(trackball);
   }
-  delete root;
+  delete tao_container;
 }
 
 
@@ -386,7 +388,7 @@ void draw()
   glVertex3d(0, 0, 1);
   glEnd();
   
-  draw_tree(root);
+  draw_tree(tao_root);
   
   view->PopProjection();
   
@@ -407,50 +409,7 @@ void handle(int signum)
 }
 
 
-static taoNode * create_ball(taoDNode * parent, int id,
-			     double len, double mass, double radius, double qinit)
-{
-  deFrame com_frame(0, 0, 0);
-  deMassProp mp;
-  mp.sphere(mass, radius, &com_frame);
-  deFrame home_frame(0, 0, -len);
-  taoNode * ball(new taoNode(parent, &home_frame));
-  mp.get(ball->mass(), ball->center(), ball->inertia());
-  ball->setID(id);
-  
-  taoVarDOF1 * dof(new taoVarDOF1());
-  taoJoint * joint(new taoJointRevolute(TAO_AXIS_X));
-  joint->setDVar(dof);
-  joint->reset();
-  joint->setDamping(0.0);
-  joint->setInertia(0.0);
-  dof->_Q = qinit;
-  dof->_dQ = 0;
-  dof->_ddQ = 0;
-  dof->_Tau = 0;
-  
-  ball->addJoint(joint); 
-  ball->addABNode();
-  
-  return ball;
-}
-
-
-taoNodeRoot * create_pendulum()
-{
-  deFrame global_frame(0, 0, 0);
-  
-  // Weird! You pass a pointer but it gets used to copy-construct a frame...
-  taoNodeRoot * root(new taoNodeRoot(&global_frame));
-  taoNode * big_ball(create_ball(root, 1, 1, 1, 0.2, M_PI/4));
-  taoNode * small_ball(create_ball(big_ball, 2, 0.25, 0.2, 0.05, -M_PI/4));
-  taoNode * mini_ball(create_ball(small_ball, 3, 0.125, 0.04, 0.01, M_PI/4));
-  
-  return root;
-}
-
-
-static void usage(ostream & os)
+void usage(ostream & os)
 {
   os << "   -h               help (this message)\n"
      << "   -v               increase verbosity\n"
@@ -461,7 +420,7 @@ static void usage(ostream & os)
 }
 
 
-static void parse_options(int argc, char ** argv)
+void parse_options(int argc, char ** argv)
 {
   for (int ii(1); ii < argc; ++ii) {
     if ((strlen(argv[ii]) < 2) || (argv[ii][0] != '-')) {

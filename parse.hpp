@@ -37,9 +37,15 @@ namespace urdf_to_tao {
 
 class taoNodeRoot;
 
-taoNodeRoot * parse_sai_xml_file(char const * filename) throw(std::runtime_error);
+class TAOContainer {
+public:
+  virtual ~TAOContainer() {}
+  virtual taoNodeRoot * getRoot() = 0;
+};
 
-taoNodeRoot * parse_urdf_file(char const * filename, std::string const & tao_root_name,
+TAOContainer * parse_sai_xml_file(char const * filename) throw(std::runtime_error);
+
+TAOContainer * parse_urdf_file(char const * filename, std::string const & tao_root_name,
 			      urdf_to_tao::LinkFilter const * opt_link_filter,
 			      std::vector<std::string> * tao_id_to_link_name_map,
 			      std::vector<std::string> * tao_id_to_joint_name_map) throw(std::runtime_error);
