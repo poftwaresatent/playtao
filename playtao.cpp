@@ -74,9 +74,11 @@ static int verbosity(1);
 static string sai_filename("");
 static string urdf_filename("");
 static string filter_filename("");
+static int n_iterations(-1);	// -1 means graphics mode, user presses 'q' to quit
 
 static void parse_options(int argc, char ** argv);
 static void init_glut(int * argc, char ** argv, int width, int height);
+static void update_simulation();
 static void reshape(int width, int height);
 static void draw();
 static void keyboard(unsigned char key, int x, int y);
@@ -101,7 +103,6 @@ int main(int argc, char ** argv)
     err(EXIT_FAILURE, "signal(SIGTERM)");
   
   wbcnet::configure_logging();
-  trackball = gltrackball_init();
   std::vector<std::string> id_to_link_name; // only for URDF -> TAO conversion though...
   std::vector<std::string> id_to_joint_name; // only for URDF -> TAO conversion though...
   
@@ -148,8 +149,16 @@ int main(int argc, char ** argv)
   
   taoDynamics::initialize(root);
   
-  init_glut(& argc, argv, winwidth, winheight);
-  glutMainLoop();
+  if (n_iterations < 0) {
+    trackball = gltrackball_init();
+    init_glut(& argc, argv, winwidth, winheight);
+    glutMainLoop();
+  }
+  else {
+    for (int ii(0); ii < n_iterations; ++ii) {
+      update_simulation();
+    }
+  }
   
   return 0;
 }
@@ -207,24 +216,29 @@ void keyboard(unsigned char key, int x, int y)
 }
 
 
+void update_simulation()
+{
+  taoDynamics::fwdDynamics(root, &gravity);
+  
+  static deFloat const dt(0.001);
+  for (size_t ii(0); ii < 10; ++ii) {
+    taoDynamics::integrate(root, dt);
+    taoDynamics::updateTransformation(root);
+  }
+  
+  ++tick;
+  if (verbosity >= 2) {
+    wbc::dump_tao_tree(cout, root, "", true, 0, 0);
+  }
+}
+
+
 void timer(int handle)
 {
   if (step || continuous) {
     if (step)
       step = false;
-    
-    taoDynamics::fwdDynamics(root, &gravity);
-    
-    static deFloat const dt(0.001);
-    for (size_t ii(0); ii < 10; ++ii) {
-      taoDynamics::integrate(root, dt);
-      taoDynamics::updateTransformation(root);
-    }
-    
-    ++tick;
-    if (verbosity >= 2) {
-      wbc::dump_tao_tree(cout, root, "", true, 0, 0);
-    }
+    update_simulation();
   }
   
   Subwindow::DispatchUpdate();
@@ -263,6 +277,7 @@ void cleanup(void)
   if (0 != trackball) {
     free(trackball);
   }
+  delete root;
 }
 
 
@@ -439,6 +454,7 @@ static void usage(ostream & os)
 {
   os << "   -h               help (this message)\n"
      << "   -v               increase verbosity\n"
+     << "   -n <iterations>  run without graphics for the number of iterations, then quit\n"
      << "   -s <SAI file>    load SAI file (takes precedence)\n"
      << "   -u <URDF file>   load URDF file (unless a SAI file was specified, too)\n"
      << "   -f <filter file> load a link filter for the URDF conversion (only used with -u)\n";
@@ -463,6 +479,22 @@ static void parse_options(int argc, char ** argv)
 	++verbosity;
       if ((strlen(argv[ii]) > 3) && ('v' == argv[ii][3]))
 	++verbosity;
+      break;
+    case 'n':
+      ++ii;
+      if (ii >= argc) {
+	usage(cerr);
+	errx(EXIT_FAILURE, "-n requires an option (see -h for more info)");
+      }
+      {
+	istringstream is(argv[ii]);
+	is >> n_iterations;
+	if ( ! is) {
+	  usage(cerr);
+	  errx(EXIT_FAILURE, "problem reading n_iterations from \"%s\"", argv[ii]);
+	}
+      }
+      warnx("n_iterations set to %d\n", n_iterations);
       break;
     case 's':
       ++ii;
