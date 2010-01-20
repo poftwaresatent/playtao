@@ -86,7 +86,7 @@ static int n_iterations(-1);	// -1 means graphics mode, user presses 'q' to quit
 static void usage(ostream & os);
 static void parse_options(int argc, char ** argv);
 static void init_glut(int * argc, char ** argv, int width, int height);
-static void update();
+static bool update();
 static void reshape(int width, int height);
 static void draw();
 static void keyboard(unsigned char key, int x, int y);
@@ -165,7 +165,9 @@ int main(int argc, char ** argv)
   }
   else {
     for (int ii(0); ii < n_iterations; ++ii) {
-      update();
+      if ( ! update()) {
+	break;
+      }
     }
   }
   
@@ -246,13 +248,14 @@ void set_node_state(taoDNode * node, SAIVector const & pos, int & index)
 }
 
 
-void update()
+bool update()
 {
   if (robot_api) {
     SAIVector pos(ndof), vel(ndof);
     struct timeval tstamp;
     if ( ! robot_api->readSensors(pos, vel, tstamp, 0)) {
-      errx(EXIT_FAILURE, "update(): robot_api->readSensors() failed");
+      cerr << "update(): robot_api->readSensors() failed\n";
+      return false;
     }
     int index(0);
     set_node_state(tao_root, pos, index);
@@ -278,6 +281,8 @@ void update()
   if (verbosity >= 2) {
     wbc::dump_tao_tree(cout, tao_root, "", true, 0, 0);
   }
+  
+  return true;
 }
 
 
@@ -286,7 +291,9 @@ void timer(int handle)
   if (step || continuous) {
     if (step)
       step = false;
-    update();
+    if ( ! update()) {
+      errx(EXIT_FAILURE, "timer(): update() failed");
+    }
   }
   
   Subwindow::DispatchUpdate();

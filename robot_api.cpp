@@ -27,6 +27,8 @@
 #include "robot_api.hpp"
 #include <saimatrix/SAIVector.h>
 #include <saimatrix/SAIMatrix.h>
+#include <fstream>
+#include <sstream>
 #include <sys/time.h>
 
 
@@ -36,31 +38,62 @@ namespace {
     : public wbc::RobotAPI
   {
   public:
+    RobotAPI(std::string const & filename)
+      : m_filename(filename),
+	m_fstream(filename.c_str())
+    {}
+    
+    
+    // probably redundant...
+    ~RobotAPI() { m_fstream.close(); }
+    
+    
     virtual bool readSensors(SAIVector & jointAngles,
 			     SAIVector & jointVelocities,
 			     timeval & acquisition_time,
 			     SAIMatrix * opt_forces)
     {
-      for ( int ii(0); ii < jointAngles.size(); ++ii )
-	jointAngles[ii] = 0.1 + 0.001 * ii;
-      for ( int ii(0); ii < jointVelocities.size(); ++ii )
-	jointVelocities[ii] = -0.1 - 0.001 * ii;
+      static int const buflen(1024);
+      static char buffer[buflen];
+      if ( ! m_fstream.getline(buffer, buflen)) {
+	cerr << "EOF or invalid file \"" << m_filename << "\"\n";
+	return false;
+      }
+      istringstream line(buffer);
+      
+      for ( int ii(0); ii < jointAngles.size(); ++ii ) {
+	line >> jointAngles[ii];
+	if ( ! line) {
+	  break;
+	}
+      }
+      if ( ! line) {
+	cerr << "incomplete line \"" << buffer << "\" in file \"" << m_filename << "\"\n";
+	return false;
+      }
+      
+      jointVelocities.zero();
       if (opt_forces) {
 	opt_forces->setSize(6, jointAngles.size(), true);
-	for (int icol(0); icol < opt_forces->column(); ++icol)
-	  for (int irow(0); irow < opt_forces->row(); ++irow)
-	    opt_forces->elementAt(irow, icol) = 5 * icol + 0.2 * irow;
       }
       if (0 != gettimeofday(&acquisition_time, NULL)) {
 	cerr << "gettimeofday() failed\n";
 	return false;
       }
+      
       return true;
     }
     
+    
     virtual bool writeCommand(SAIVector const & command) { return true; }
     
+    
     virtual void shutdown() const {}
+    
+    
+  protected:
+    std::string const m_filename;
+    std::ifstream m_fstream;
   };
   
 }
@@ -68,5 +101,5 @@ namespace {
 
 wbc::RobotAPI * create_robot(std::string const & spec)
 {
-  return new RobotAPI();
+  return new RobotAPI(spec);
 }
