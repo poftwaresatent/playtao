@@ -232,7 +232,10 @@ void keyboard(unsigned char key, int x, int y)
 void set_node_state(taoDNode * node, SAIVector const & pos, int & index)
 {
   for (taoJoint * joint(node->getJointList()); 0 != joint; joint = joint->getNext()) {
-    // braindead alert! avert your eyes! (would someone please rewrite tao?)
+    // Well, at first it seems weird that taoJoint::setQ() etc expect
+    // a pointer, but this actually makes sense because a joint can
+    // have more than one degree of freedom, and the pointer semantics
+    // allow us to pass in an array.
     double pp(0);
     if (pos.size() > index) {
       pp = pos[index];
