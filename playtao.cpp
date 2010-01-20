@@ -25,8 +25,10 @@
 */
 
 #include "parse.hpp"
+#include "robot_api.hpp"
 #include <wbc/util/urdf_to_tao.hpp>
 #include <wbc/util/dump.hpp>
+#include <wbc/util/tao_util.hpp>
 #include <wbcnet/log.hpp>
 
 #include <tao/dynamics/taoNode.h>
@@ -34,6 +36,8 @@
 #include <tao/dynamics/taoDynamics.h>
 #include <tao/dynamics/taoVar.h>
 #include <tao/utility/TaoDeMassProp.h>
+
+#include <saimatrix/SAIVector.h>
 
 #include <gfx/wrap_glut.hpp>
 #include <gfx/Viewport.hpp>
@@ -61,6 +65,8 @@ using namespace std;
 static TAOContainer * tao_container(0);
 static taoNodeRoot * tao_root(0);	// this gets deleted for us by the TAOContainer dtor
 static deVector3 gravity(0, 0, -9.81);
+static int ndof(0);
+static wbc::RobotAPI * robot_api(0);
 
 static const unsigned int timer_delay(100);
 static size_t tick(0);
@@ -80,7 +86,7 @@ static int n_iterations(-1);	// -1 means graphics mode, user presses 'q' to quit
 static void usage(ostream & os);
 static void parse_options(int argc, char ** argv);
 static void init_glut(int * argc, char ** argv, int width, int height);
-static void update_simulation();
+static void update();
 static void reshape(int width, int height);
 static void draw();
 static void keyboard(unsigned char key, int x, int y);
@@ -149,6 +155,7 @@ int main(int argc, char ** argv)
     wbc::dump_tao_tree(cout, tao_root, "FINAL  ", false, &id_to_link_name, &id_to_joint_name);
   }
   
+  ndof = wbc::countDegreesOfFreedom(tao_root);
   taoDynamics::initialize(tao_root);
   
   if (n_iterations < 0) {
@@ -158,7 +165,7 @@ int main(int argc, char ** argv)
   }
   else {
     for (int ii(0); ii < n_iterations; ++ii) {
-      update_simulation();
+      update();
     }
   }
   
@@ -218,14 +225,53 @@ void keyboard(unsigned char key, int x, int y)
 }
 
 
-void update_simulation()
+void set_node_state(taoDNode * node, SAIVector const & pos, int & index)
 {
-  taoDynamics::fwdDynamics(tao_root, &gravity);
-  
-  static deFloat const dt(0.001);
-  for (size_t ii(0); ii < 10; ++ii) {
-    taoDynamics::integrate(tao_root, dt);
+  for (taoJoint * joint(node->getJointList()); 0 != joint; joint = joint->getNext()) {
+    // braindead alert! avert your eyes! (would someone please rewrite tao?)
+    double pp(0);
+    if (pos.size() > index) {
+      pp = pos[index];
+    }
+    joint->setQ(&pp);
+    pp = 0;
+    joint->setDQ(&pp);
+    joint->setDDQ(&pp);
+    joint->setTau(&pp);
+    ++index;
+  }
+  for (taoDNode * child(node->getDChild()); 0 != child; child = child->getDSibling()) {
+    set_node_state(child, pos, index);
+  }
+}
+
+
+void update()
+{
+  if (robot_api) {
+    SAIVector pos(ndof), vel(ndof);
+    struct timeval tstamp;
+    if ( ! robot_api->readSensors(pos, vel, tstamp, 0)) {
+      errx(EXIT_FAILURE, "update(): robot_api->readSensors() failed");
+    }
+    int index(0);
+    set_node_state(tao_root, pos, index);
+    // // // could be even stricter: index should be exactly pos.size()...
+    // // if ((0 == index) || (pos.size() < index)) {
+    // //   errx(EXIT_FAILURE,
+    // // 	   "oops after set_node_state(): pos.size() is %d and index after traversal is %d",
+    // // 	   pos.size(), index);
+    // // }
     taoDynamics::updateTransformation(tao_root);
+  }
+  else {
+    taoDynamics::fwdDynamics(tao_root, &gravity);
+  
+    static deFloat const dt(0.001);
+    for (size_t ii(0); ii < 10; ++ii) {
+      taoDynamics::integrate(tao_root, dt);
+      taoDynamics::updateTransformation(tao_root);
+    }
   }
   
   ++tick;
@@ -240,7 +286,7 @@ void timer(int handle)
   if (step || continuous) {
     if (step)
       step = false;
-    update_simulation();
+    update();
   }
   
   Subwindow::DispatchUpdate();
@@ -280,6 +326,7 @@ void cleanup(void)
     free(trackball);
   }
   delete tao_container;
+  delete robot_api;
 }
 
 
@@ -416,7 +463,8 @@ void usage(ostream & os)
      << "   -n <iterations>  run without graphics for the number of iterations, then quit\n"
      << "   -s <SAI file>    load SAI file (takes precedence)\n"
      << "   -u <URDF file>   load URDF file (unless a SAI file was specified, too)\n"
-     << "   -f <filter file> load a link filter for the URDF conversion (only used with -u)\n";
+     << "   -f <filter file> load a link filter for the URDF conversion (only used with -u)\n"
+     << "   -R <robot spec>  retrieve joint angles from a robot at each tick\n";
 }
 
 
@@ -443,7 +491,7 @@ void parse_options(int argc, char ** argv)
       ++ii;
       if (ii >= argc) {
 	usage(cerr);
-	errx(EXIT_FAILURE, "-n requires an option (see -h for more info)");
+	errx(EXIT_FAILURE, "-n requires an argument (see -h for more info)");
       }
       {
 	istringstream is(argv[ii]);
@@ -459,7 +507,7 @@ void parse_options(int argc, char ** argv)
       ++ii;
       if (ii >= argc) {
 	usage(cerr);
-	errx(EXIT_FAILURE, "-s requires an option (see -h for more info)");
+	errx(EXIT_FAILURE, "-s requires an argument (see -h for more info)");
       }
       sai_filename = argv[ii];
       break;
@@ -467,7 +515,7 @@ void parse_options(int argc, char ** argv)
       ++ii;
       if (ii >= argc) {
 	usage(cerr);
-	errx(EXIT_FAILURE, "-u requires an option (see -h for more info)");
+	errx(EXIT_FAILURE, "-u requires an argument (see -h for more info)");
       }
       urdf_filename = argv[ii];
       break;
@@ -475,9 +523,22 @@ void parse_options(int argc, char ** argv)
       ++ii;
       if (ii >= argc) {
 	usage(cerr);
-	errx(EXIT_FAILURE, "-f requires an option (see -h for more info)");
+	errx(EXIT_FAILURE, "-f requires an argument (see -h for more info)");
       }
       filter_filename = argv[ii];
+      break;
+    case 'R':
+      ++ii;
+      if (ii >= argc) {
+	usage(cerr);
+	errx(EXIT_FAILURE, "-R requires an argument (see -h for more info)");
+      }
+      try {
+	robot_api = create_robot(argv[ii]);
+      }
+      catch (std::exception const & ee) {
+	errx(EXIT_FAILURE, "EXCEPTION while creating robot from spec \"%s\": %s", argv[ii], ee.what());
+      }
       break;
     default:
       usage(cerr);
