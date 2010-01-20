@@ -67,6 +67,8 @@ static taoNodeRoot * tao_root(0);	// this gets deleted for us by the TAOContaine
 static deVector3 gravity(0, 0, -9.81);
 static int ndof(0);
 static wbc::RobotAPI * robot_api(0);
+static std::string transform_filename("");
+static std::ofstream * transform_file(0);
 
 static const unsigned int timer_delay(100);
 static size_t tick(0);
@@ -248,10 +250,20 @@ void set_node_state(taoDNode * node, SAIVector const & pos, int & index)
 }
 
 
+static void dump_global_frames(std::ostream & os, taoDNode * node, std::string const & prefix)
+{
+  os << prefix << "ID " << node->getID() << ": " << *node->frameGlobal() << "\n";
+  for (taoDNode * child(node->getDChild()); child != 0; child = child->getDSibling()) {
+    dump_global_frames(os, child, prefix);
+  }
+}
+
+
 bool update()
 {
+  SAIVector pos(ndof);
   if (robot_api) {
-    SAIVector pos(ndof), vel(ndof);
+    SAIVector vel(ndof);
     struct timeval tstamp;
     if ( ! robot_api->readSensors(pos, vel, tstamp, 0)) {
       cerr << "update(): robot_api->readSensors() failed\n";
@@ -280,6 +292,13 @@ bool update()
   ++tick;
   if (verbosity >= 2) {
     wbc::dump_tao_tree(cout, tao_root, "", true, 0, 0);
+  }
+  
+  if (transform_file) {
+    (*transform_file) << "==================================================\n"
+		      << "joint_positions:\t" << pos << "\n"
+		      << "link_origins:\n";
+    dump_global_frames(*transform_file, tao_root->getDChild(), "  ");
   }
   
   return true;
@@ -329,6 +348,12 @@ void motion(int x, int y)
 
 void cleanup(void)
 {
+  if (transform_file) {
+    // flushing and closing is probably redundant...
+    (*transform_file) << flush;
+    transform_file->close();
+    delete transform_file;
+  }
   if (0 != trackball) {
     free(trackball);
   }
@@ -471,7 +496,8 @@ void usage(ostream & os)
      << "   -s <SAI file>    load SAI file (takes precedence)\n"
      << "   -u <URDF file>   load URDF file (unless a SAI file was specified, too)\n"
      << "   -f <filter file> load a link filter for the URDF conversion (only used with -u)\n"
-     << "   -R <robot spec>  retrieve joint angles from a robot at each tick\n";
+     << "   -R <robot spec>  retrieve joint angles from a robot at each tick\n"
+     << "   -t <filename>    write joint angles and link transforms to file at each tick\n";
 }
 
 
@@ -545,6 +571,18 @@ void parse_options(int argc, char ** argv)
       }
       catch (std::exception const & ee) {
 	errx(EXIT_FAILURE, "EXCEPTION while creating robot from spec \"%s\": %s", argv[ii], ee.what());
+      }
+      break;
+    case 't':
+      ++ii;
+      if (ii >= argc) {
+	usage(cerr);
+	errx(EXIT_FAILURE, "-t requires an argument (see -h for more info)");
+      }
+      transform_filename = argv[ii];
+      transform_file = new ofstream(argv[ii]);
+      if ( ! (*transform_file)) {
+	errx(EXIT_FAILURE, "problem opening transform file \"%s\"", argv[ii]);
       }
       break;
     default:
