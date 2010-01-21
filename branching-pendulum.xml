@@ -1,0 +1,59 @@
+<?xml version="1.0" ?>
+
+<dynworld>
+  <baseNode>
+    <gravity>0, 0, -9.81</gravity>
+    <pos>0, 0, 0</pos>
+    <rot>1, 0, 0, 0</rot>
+    
+    <!-- pendulum around X axis -->
+    
+    <jointNode>
+      <ID>0</ID>
+      <type>R</type>
+      <axis>X</axis>
+      <mass>2</mass>
+      <inertia>0.125, 0, 0.125</inertia>
+      <com>0, 0.75, 0</com>
+      <pos>0, 0, 0</pos> <!-- wrt baseNode -->
+      <rot>0, 0, 1, 0</rot>
+
+      <jointNode>
+	<ID>1</ID>
+	<type>R</type>
+	<axis>X</axis>
+	<mass>1</mass>
+	<inertia>0.015625, 0, 0.015625</inertia>
+	<com>0, 0.375, 0</com>
+	<pos>0, 1, 0</pos> <!-- wrt node #0 -->
+	<rot>0, 0, 1, 0</rot>
+      </jointNode>
+    </jointNode>
+    
+    <!-- pendulum around Y axis -->
+    
+    <jointNode>
+      <ID>2</ID>
+      <type>R</type>
+      <axis>Y</axis>
+      <mass>2</mass>
+      <inertia>0, 0.125, 0.125</inertia>
+      <com>0.75, 0, 0</com>
+      <pos>0, 0, 0</pos> <!-- wrt baseNode -->
+      <rot>0, 0, 1, 0</rot>
+
+      <jointNode>
+	<ID>3</ID>
+	<type>R</type>
+	<axis>Y</axis>
+	<mass>1</mass>
+	<inertia>0, 0.015625, 0.015625</inertia>
+	<com>0.375, 0, 0</com>
+	<pos>1, 0, 0</pos> <!-- wrt node #0 -->
+	<rot>0, 0, 1, 0</rot>
+      </jointNode>
+    </jointNode>
+    
+  </baseNode>
+  
+</dynworld>
