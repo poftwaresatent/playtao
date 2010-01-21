@@ -29,6 +29,8 @@
 #include <wbc/util/urdf_to_tao.hpp>
 #include <wbc/util/dump.hpp>
 #include <wbc/util/tao_util.hpp>
+#include <wbc/core/Plugin.hpp>
+#include <wbc/bin/builtin.hpp>
 #include <wbcnet/log.hpp>
 
 #include <tao/dynamics/taoNode.h>
@@ -66,6 +68,7 @@ static TAOContainer * tao_container(0);
 static taoNodeRoot * tao_root(0);	// this gets deleted for us by the TAOContainer dtor
 static deVector3 gravity(0, 0, -9.81);
 static int ndof(0);
+static wbc::Extensions * wbc_extensions(0);
 static wbc::RobotAPI * robot_api(0);
 static std::string transform_filename("");
 static std::ofstream * transform_file(0);
@@ -113,6 +116,10 @@ int main(int argc, char ** argv)
   wbcnet::configure_logging();
   std::vector<std::string> id_to_link_name; // only for URDF -> TAO conversion though...
   std::vector<std::string> id_to_joint_name; // only for URDF -> TAO conversion though...
+  
+  wbcnet::manual_logging_verbosity(2);
+  wbc_extensions = wbc::load_extensions(0);
+  return 0;
   
   parse_options(argc, argv);
   
@@ -362,6 +369,7 @@ void cleanup(void)
   }
   delete tao_container;
   delete robot_api;
+  delete wbc_extensions;
 }
 
 
