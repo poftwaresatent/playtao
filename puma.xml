@@ -1,0 +1,223 @@
+<?xml version="1.0" ?>
+
+<!-- ======================================================================= -->
+<!--   Copyright (C) 2008. Stanford University - Artificial Intelligence Lab -->
+<!--         XML file describing a PUMA robot arm for Stanford_WBC           -->
+<!-- ======================================================================= -->
+
+<!-- All units are in International System -->
+
+<dynworld>
+  <baseNode>
+    <robotName>Puma</robotName>
+    <controller>2</controller>
+    <gravity>0, 0, -9.81</gravity>
+    <pos>0, 0, 0</pos>
+    <rot>1, 0, 0, 0</rot>
+    <name>base</name>
+    <imagePos>0, 0, 0</imagePos>
+    <imageRot>1, 0, 0, 0</imageRot>
+    <imageScale>1, 1, 1</imageScale>
+    <imageOrigin>0, 0, 0</imageOrigin>
+    <url>images/base.obj</url>
+    <ID>-1</ID>
+
+    <jointNode>
+      <jointName>shoulder-yaw</jointName>
+      <linkName>base</linkName>
+      <upperJointLimit>0.1</upperJointLimit>
+      <lowerJointLimit>-0.1</lowerJointLimit>
+      <defaultJointPosition>0</defaultJointPosition>
+      <opID>-1</opID>
+      <type>R</type>
+      <axis>Z</axis>
+      <mass>34.40</mass>
+      <inertia>0.00, 0.00, 1.49</inertia>
+      <com>0, 0, 0</com>
+      <maFrictionStatic>0.1</maFrictionStatic>
+      <maFrictionViscous>0</maFrictionViscous>
+      <maFrictionGrip>1</maFrictionGrip>
+      <maFrictionDynamic>0</maFrictionDynamic>
+      <pos>0, 0, 0</pos>
+      <rot>0, 0, 1, 0</rot>
+      <name>NoName</name>
+      <imagePos>0, 0, 0</imagePos>
+      <imageRot>1, 0, 0, 0</imageRot>
+      <imageScale>1, 1, 1</imageScale>
+      <imageOrigin>0, 0, 0</imageOrigin>
+      <url>images/shoulder.obj</url>
+      <ID>0</ID>
+
+      <jointNode>
+	<jointName>shoulder-pitch</jointName>
+	<linkName>upper_arm</linkName>
+	<upperJointLimit>0.1</upperJointLimit>
+	<lowerJointLimit>-0.1</lowerJointLimit>
+	<defaultJointPosition>0</defaultJointPosition>
+	<opID>-1</opID>
+	<type>R</type>
+	<axis>Z</axis>
+	<mass>17.40</mass>
+	<inertia>0.13, 0.524, 5.249</inertia>
+	<com>0.068, 0.006, -0.016</com>
+	<maFrictionStatic>0.1</maFrictionStatic>
+	<maFrictionViscous>0</maFrictionViscous>
+	<maFrictionGrip>1</maFrictionGrip>
+	<maFrictionDynamic>0</maFrictionDynamic>
+	<pos>0.0, 0.2435, 0.0</pos>
+	<rot>1, 0, 0, -1.57079632679489661923</rot>
+	<name>upper_arm</name>
+	<imagePos>0, 0, 0</imagePos>
+	<imageRot>1, 0, 0, 0</imageRot>
+	<imageScale>1, 1, 1</imageScale>
+	<imageOrigin>0, 0, 0</imageOrigin>
+	<url>images/upper_arm.obj</url>
+	<ID>1</ID>
+
+	<jointNode>
+	  <jointName>elbow</jointName>
+	  <linkName>lower_arm</linkName>
+	  <upperJointLimit>0.1</upperJointLimit>
+	  <lowerJointLimit>-0.1</lowerJointLimit>
+	  <defaultJointPosition>0</defaultJointPosition>
+	  <opID>-1</opID>
+	  <type>R</type>
+	  <axis>Z</axis>
+	  <mass>6.04</mass>
+	  <inertia>0.192, 0.0154, 1.042</inertia>
+	  <com>0, -0.143, 0.014</com>
+	  <maFrictionStatic>0.1</maFrictionStatic>
+	  <maFrictionViscous>0</maFrictionViscous>
+	  <maFrictionGrip>1</maFrictionGrip>
+	  <maFrictionDynamic>0</maFrictionDynamic>
+	  <pos>0.4318, 0, -0.0934</pos>
+	  <rot>1, 0, 0, 0</rot>
+	  <name>lower_arm</name>
+	  <imagePos>0, 0, 0</imagePos>
+	  <imageRot>1, 0, 0, 0</imageRot>
+	  <imageScale>1, 1, 1</imageScale>
+	  <imageOrigin>0, 0, 0</imageOrigin>
+	  <url>images/lower_arm.obj</url>
+	  <ID>2</ID>
+
+	  <jointNode>
+	    <jointName>wrist-roll1</jointName>
+	    <linkName>wrist-hand</linkName>
+	    <upperJointLimit>0.1</upperJointLimit>
+	    <lowerJointLimit>-0.1</lowerJointLimit>
+	    <defaultJointPosition>0</defaultJointPosition>
+	    <opID>-1</opID>
+	    <type>R</type>
+	    <axis>Z</axis>
+	    <mass>0.82</mass>
+	    <inertia>0.0018, 0.0018, 0.2013</inertia>
+	    <com>0.0, 0.0, -0.019</com>
+	    <maFrictionStatic>0.1</maFrictionStatic>
+	    <maFrictionViscous>0</maFrictionViscous>
+	    <maFrictionGrip>1</maFrictionGrip>
+	    <maFrictionDynamic>0</maFrictionDynamic>
+	    <pos>-0.0203, -0.4331, 0.0</pos>
+	    <rot>1, 0, 0, 1.57079632679489661923</rot>
+	    <name>wrist-hand</name>
+	    <imagePos>0, 0, 0</imagePos>
+	    <imageRot>1, 0, 0, 0</imageRot>
+	    <imageScale>1, 1, 1</imageScale>
+	    <imageOrigin>0, 0, 0</imageOrigin>
+	    <url>images/hand.obj</url>
+	    <ID>3</ID>
+
+	    <jointNode>
+	      <jointName>wrist-pitch</jointName>
+	      <linkName>wrist-finger</linkName>
+	      <upperJointLimit>0.1</upperJointLimit>
+	      <lowerJointLimit>-0.1</lowerJointLimit>
+	      <defaultJointPosition>0</defaultJointPosition>
+	      <opID>0</opID>
+	      <type>R</type>
+	      <axis>Z</axis>
+	      <mass>0.34</mass>
+	      <inertia>0.0003, 0.0003, 0.1794</inertia>
+	      <com>0.0, 0.0, 0.0</com>
+	      <maFrictionStatic>0.1</maFrictionStatic>
+	      <maFrictionViscous>0</maFrictionViscous>
+	      <maFrictionGrip>1</maFrictionGrip>
+	      <maFrictionDynamic>0</maFrictionDynamic>
+	      <pos>0, 0, 0</pos>
+	      <rot>1, 0, 0, -1.57079632679489661923</rot>
+	      <name>wrist-finger</name>
+	      <imagePos>0, 0, 0</imagePos>
+	      <imageRot>1, 0, 0, 0</imageRot>
+	      <imageScale>1, 1, 1</imageScale>
+	      <imageOrigin>0, 0, 0</imageOrigin>
+	      <url>images/finger.obj</url>
+	      <ID>4</ID>
+
+	      <jointNode>
+		<jointName>wrist-roll2</jointName>
+		<linkName>end-effector</linkName>
+		<upperJointLimit>0.1</upperJointLimit>
+		<lowerJointLimit>-0.1</lowerJointLimit>
+		<defaultJointPosition>0</defaultJointPosition>
+		<opID>0</opID>
+		<type>R</type>
+		<axis>Z</axis>
+		<mass>0.09</mass>
+		<inertia>0.00015, 0.00015, 0.19304</inertia>
+		<com>0.0, 0.0, 0.032</com>
+		<maFrictionStatic>0.1</maFrictionStatic>
+		<maFrictionViscous>0</maFrictionViscous>
+		<maFrictionGrip>1</maFrictionGrip>
+		<maFrictionDynamic>0</maFrictionDynamic>
+		<pos>0, 0, 0</pos>
+		<rot>1, 0, 0, 1.57079632679489661923</rot>
+		<name>end-effector</name>
+		<imagePos>0, 0, 0</imagePos>
+		<imageRot>1, 0, 0, 0</imageRot>
+		<imageScale>1, 1, 1</imageScale>
+		<imageOrigin>0, 0, 0</imageOrigin>
+		<url>images/force_sensor.obj</url>
+		<ID>5</ID>
+
+	      </jointNode>
+	    </jointNode>
+	  </jointNode>
+	</jointNode>
+      </jointNode>
+    </jointNode>
+  </baseNode>
+
+  <camera>
+    <pos>1, 0, 0</pos>
+    <lookat>0, 0, 0</lookat>
+    <up>0, 0, 1</up>
+    <name>NoName</name>
+  </camera>
+
+  <shape>
+    <type></type>
+    <pos>0, 0, 0</pos>
+    <rot>1, 0, 0, 0</rot>
+  </shape>
+  
+  <options>
+    <selectMode>4</selectMode>
+    <showCtrlPts>1</showCtrlPts>
+    <showCntctForces>1</showCntctForces>
+  </options>
+  
+  <behavior>
+    <type>FloatBehavior</type>
+  </behavior>
+  
+  <behavior>
+    <type>PostureBehavior</type>
+    <posture_key>a 0 0 0 0 0 0</posture_key>
+    <posture_key>b 1 0 0 0 0 0</posture_key>
+    <posture_key>c 0 1 0 0 0 0</posture_key>
+    <posture_key>d 0 0 1 0 0 0</posture_key>
+    <posture_key>e 0 0 0 1 0 0</posture_key>
+    <posture_key>f 0 0 0 0 1 0</posture_key>
+    <posture_key>g 0 0 0 0 0 1</posture_key>
+  </behavior>
+  
+</dynworld>
