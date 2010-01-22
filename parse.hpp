@@ -46,8 +46,13 @@ public:
 TAOContainer * parse_sai_xml_file(char const * filename) throw(std::runtime_error);
 
 TAOContainer * parse_urdf_file(char const * filename, std::string const & tao_root_name,
-			      urdf_to_tao::LinkFilter const * opt_link_filter,
-			      std::vector<std::string> * tao_id_to_link_name_map,
-			      std::vector<std::string> * tao_id_to_joint_name_map) throw(std::runtime_error);
+			       urdf_to_tao::LinkFilter const * opt_link_filter,
+			       std::vector<std::string> * tao_id_to_link_name_map,
+			       std::vector<std::string> * tao_id_to_joint_name_map) throw(std::runtime_error);
+
+TAOContainer * parse_ros_parameter(/** You probably want to say "pr2_stanford_wbc" here. */
+				   std::string const & node_name,
+				   /** You probably want to say "/robot_description" here. */
+				   std::string const & urdf_param_name) throw(std::runtime_error);
 
 #endif // PLAYTAO_PARSE_HPP

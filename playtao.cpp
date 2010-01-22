@@ -56,9 +56,6 @@
 #include <cstring>
 #include <sys/time.h>
 
-#ifdef HAVE_URDF
-# include <urdf/model.h>
-#endif
 
 using namespace gfx;
 using namespace boost;
@@ -81,8 +78,9 @@ static std::ofstream * transform_file(0);
 static double servo_rate(500.0); // Hz
 static int simul_rate(10);	 // multiple of servo_rate
 static double simul_dt(-1);	 // 1.0s / servo_rate / simul_rate
+static bool ros_param_mode(false);
 
-static const unsigned int timer_delay(10);
+static unsigned int timer_delay(100);
 static size_t tick(0);
 static trackball_state * trackball;
 static int left_button_down(0);
@@ -144,13 +142,20 @@ int main(int argc, char ** argv)
       errx(EXIT_FAILURE, "you specified -R and -S, that makes no sense");
     }
     
+    
     if ( ! sai_filename.empty()) {
+      if ((( ! urdf_filename.empty()) || ros_param_mode)) {
+	throw runtime_error("please use only one of the -s, -u, or -p options");
+      }
       cout << "loading SAI file " << sai_filename << "\n";
       tao_container = parse_sai_xml_file(sai_filename.c_str());
       tao_root = tao_container->getRoot();
     }
     
     else if ( ! urdf_filename.empty()) {
+      if (ros_param_mode) {
+	throw runtime_error("please use only one of the -s, -u, or -p options");
+      }
       shared_ptr<urdf_to_tao::FlatFileLinkFilter> link_filter;
       string root_name("world");
       if ( ! filter_filename.empty()) {
@@ -166,9 +171,15 @@ int main(int argc, char ** argv)
       tao_root = tao_container->getRoot();
     }
     
+    else if (ros_param_mode) {
+      cout << "ROS parameter mode\n";
+      tao_container = parse_ros_parameter("pr2_stanford_wbc", "/robot_description");
+      tao_root = tao_container->getRoot();
+    }
+    
     else {
       usage(cerr);
-      errx(EXIT_FAILURE, "you have to specify a SAI or URDF file");
+      errx(EXIT_FAILURE, "you have to specify one of the -s, -u, or -p options");
     }
     
   }
@@ -568,6 +579,7 @@ void usage(ostream & os)
 {
   os << "   -h               help (this message)\n"
      << "   -v               increase verbosity\n"
+     << "   -p               use ROS parameters to initialize robot model\n"
      << "   -n <iterations>  run without graphics for the number of iterations, then quit\n"
      << "   -s <SAI file>    load SAI file (takes precedence)\n"
      << "   -u <URDF file>   load URDF file (unless a SAI file was specified, too)\n"
@@ -596,6 +608,9 @@ void parse_options(int argc, char ** argv)
 	++verbosity;
       if ((strlen(argv[ii]) > 3) && ('v' == argv[ii][3]))
 	++verbosity;
+      break;
+    case 'p':
+      ros_param_mode = true;
       break;
     case 'n':
       ++ii;
@@ -672,4 +687,8 @@ void parse_options(int argc, char ** argv)
   }
   
   simul_dt = 1.0 / servo_rate / simul_rate;
+  
+  if ( ! servo_spec.empty()) {
+    timer_delay = 10;
+  }
 }

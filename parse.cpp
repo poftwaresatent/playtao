@@ -117,3 +117,59 @@ TAOContainer * parse_urdf_file(char const * filename, std::string const & tao_ro
 }
 
 #endif // HAVE_URDF
+
+
+#ifndef HAVE_PR2_STANFORD_WBC
+
+TAOContainer * parse_ros_parameter(std::string const & node_name,
+				   std::string const & urdf_param_name) throw(std::runtime_error)
+{
+  throw runtime_error("parse_ros_parameter() only available when the pr2_stanford_wbc ROS package is around");
+}
+
+#else // HAVE_PR2_STANFORD_WBC
+
+#include <pr2_stanford_wbc/util.h>
+
+
+class PR2TAOContainer: public TAOContainer {
+public:
+  PR2TAOContainer(std::string const & node_name)
+    : node(0)
+  {
+    int argc(1);
+    char * argv[1];
+    argv[0] = strdup("fake_node_for_playtao");
+    ros::init(argc, argv, node_name, ros::init_options::NoSigintHandler);
+    free(argv[0]);
+  }
+  
+  virtual ~PR2TAOContainer()
+  {
+    delete node;
+  }
+  
+  void init(std::string const & urdf_param_name) throw(std::runtime_error)
+  {
+    node = new ros::NodeHandle("~");
+    model.initFromParam(*node, urdf_param_name, 0);
+  }
+  
+  virtual taoNodeRoot * getRoot() {
+    return model.tao_root_node_;
+  }
+  
+  ros::NodeHandle * node;
+  pr2_stanford_wbc::Model model;
+};
+
+
+TAOContainer * parse_ros_parameter(std::string const & node_name,
+				   std::string const & urdf_param_name) throw(std::runtime_error)
+{
+  PR2TAOContainer * container(new PR2TAOContainer(node_name));
+  container->init(urdf_param_name);
+  return container;
+}
+
+#endif // HAVE_PR2_STANFORD_WBC

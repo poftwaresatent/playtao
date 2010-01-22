@@ -73,15 +73,11 @@ if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
 endif (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
 
 include (FindOpenGL)
-message ("DBG OPENGL_INCLUDE_DIR: ${OPENGL_INCLUDE_DIR}")
-message ("DBG OPENGL_LIBRARIES: ${OPENGL_LIBRARIES}")
 if (NOT OPENGL_FOUND)
-  message (FATAL_ERROR "GLUT not found")
+  message (FATAL_ERROR "OpenGL not found")
 endif (NOT OPENGL_FOUND)
 
 include (FindGLUT)
-message ("DBG GLUT_INCLUDE_DIRW: ${GLUT_INCLUDE_DIR}")
-message ("DBG GLUT_LIBRARIES: ${GLUT_LIBRARIES}")
 if (NOT GLUT_FOUND)
   message (FATAL_ERROR "GLUT not found")
 endif (NOT GLUT_FOUND)
@@ -97,48 +93,47 @@ if (NOT TRY_ROS)
 endif (NOT TRY_ROS)
 
 if (TRY_ROS)
-
-  message ("DBG ROS_ROOT: $ENV{ROS_ROOT}")
   if (NOT $ENV{ROS_ROOT} STREQUAL "")
     if (NOT EXISTS $ENV{ROS_ROOT}/core/rosbuild/rosbuild.cmake)
-      message ("WARNING ROS_ROOT is set but rosbuild.cmake not found")
-      set (HAVE_ROS-NOTFOUND)
-    else (NOT EXISTS $ENV{ROS_ROOT}/core/rosbuild/rosbuild.cmake)
-      set (HAVE_ROS true)
-      include ($ENV{ROS_ROOT}/core/rosbuild/rosbuild.cmake)
-      rosbuild_find_ros_package (urdf)
-      message ("DBG urdf_PACKAGE_PATH: ${urdf_PACKAGE_PATH}")
-      if (${urdf_PACKAGE_PATH} STREQUAL "")
-	message ("WARNING urdf ROS package not found")
-      else (${urdf_PACKAGE_PATH} STREQUAL "")
-	# get compiler -I flags required for urdf and its deps
-	rosbuild_invoke_rospack (urdf playtao temp cflags-only-I)
-	include_directories (${playtao_temp})
-	
-	# get compiler -D flags required for urdf and its deps
-	rosbuild_invoke_rospack (urdf playtao temp cflags-only-other)
-	add_definitions (${playtao_temp})
-	
-	# get linker -L flags required for urdf and its deps
-	rosbuild_invoke_rospack (urdf playtao temp libs-only-L)
-	link_directories (${playtao_temp})
-	
-	# get linker -l flags required for urdf and its deps
-	rosbuild_invoke_rospack (urdf playtao temp libs-only-l)
-	list (APPEND LIBS ${playtao_temp})
-	
-	###	rosbuild_invoke_rospack (urdf playtao temp libs-only-other)
-	
-	add_definitions (-DHAVE_URDF)
-
-      endif (${urdf_PACKAGE_PATH} STREQUAL "")
+      message (FATAL_ERROR "ROS_ROOT is set but rosbuild.cmake not found")
     endif (NOT EXISTS $ENV{ROS_ROOT}/core/rosbuild/rosbuild.cmake)
+    
+    include ($ENV{ROS_ROOT}/core/rosbuild/rosbuild.cmake)
+    add_definitions (-DHAVE_ROS)
+    
+    rosbuild_find_ros_package (urdf)
+    if (${urdf_PACKAGE_PATH} STREQUAL "")
+      message ("WARNING urdf ROS package not found")
+    else (${urdf_PACKAGE_PATH} STREQUAL "")
+      message ("Found urdf ROS package")
+      rosbuild_invoke_rospack (urdf playtao temp cflags-only-I)
+      include_directories (${playtao_temp})
+      rosbuild_invoke_rospack (urdf playtao temp cflags-only-other)
+      add_definitions (${playtao_temp})
+      rosbuild_invoke_rospack (urdf playtao temp libs-only-L)
+      link_directories (${playtao_temp})
+      rosbuild_invoke_rospack (urdf playtao temp libs-only-l)
+      list (APPEND LIBS ${playtao_temp})
+      add_definitions (-DHAVE_URDF)
+    endif (${urdf_PACKAGE_PATH} STREQUAL "")
+    
+    rosbuild_find_ros_package (pr2_stanford_wbc)
+    if (${pr2_stanford_wbc_PACKAGE_PATH} STREQUAL "")
+      message ("WARNING pr2_stanford_wbc ROS package not found")
+    else (${pr2_stanford_wbc_PACKAGE_PATH} STREQUAL "")
+      message ("Found pr2_stanford_wbc ROS package")
+      rosbuild_invoke_rospack (pr2_stanford_wbc playtao temp cflags-only-I)
+      include_directories (${playtao_temp})
+      rosbuild_invoke_rospack (pr2_stanford_wbc playtao temp cflags-only-other)
+      add_definitions (${playtao_temp})
+      rosbuild_invoke_rospack (pr2_stanford_wbc playtao temp libs-only-L)
+      link_directories (${playtao_temp})
+      rosbuild_invoke_rospack (pr2_stanford_wbc playtao temp libs-only-l)
+      list (APPEND LIBS ${playtao_temp})
+      add_definitions (-DHAVE_PR2_STANFORD_WBC)
+    endif (${pr2_stanford_wbc_PACKAGE_PATH} STREQUAL "")
+    
   endif (NOT $ENV{ROS_ROOT} STREQUAL "")
-
-  if (NOT HAVE_ROS)
-    message ("ROS not found, cannot handle URDF")
-  endif (NOT HAVE_ROS)
-
 endif (TRY_ROS)
 
 add_executable (playtao ${SOURCES})
