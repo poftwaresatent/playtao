@@ -142,7 +142,6 @@ int main(int argc, char ** argv)
       errx(EXIT_FAILURE, "you specified -R and -S, that makes no sense");
     }
     
-    
     if ( ! sai_filename.empty()) {
       if ((( ! urdf_filename.empty()) || ros_param_mode)) {
 	throw runtime_error("please use only one of the -s, -u, or -p options");
