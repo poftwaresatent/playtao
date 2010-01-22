@@ -78,8 +78,11 @@ static wbc::RobotAPI * robot_api(0);
 static wbc::BidirectionalRobotAPI * servo_api(0);
 static std::string transform_filename("");
 static std::ofstream * transform_file(0);
+static double servo_rate(500.0); // Hz
+static int simul_rate(10);	 // multiple of servo_rate
+static double simul_dt(-1);	 // 1.0s / servo_rate / simul_rate
 
-static const unsigned int timer_delay(100);
+static const unsigned int timer_delay(10);
 static size_t tick(0);
 static trackball_state * trackball;
 static int left_button_down(0);
@@ -351,13 +354,12 @@ bool update()
       }
     }
     
-    static deFloat const dt(0.001);
-    for (size_t ii(0); ii < 10; ++ii) {
+    for (size_t ii(0); ii < simul_rate; ++ii) {
       taoDynamics::fwdDynamics(tao_root, &gravity);
       if (servo_api) {
 	add_node_command(tao_root, &tau[0]);
       }
-      taoDynamics::integrate(tao_root, dt);
+      taoDynamics::integrate(tao_root, simul_dt);
       taoDynamics::updateTransformation(tao_root);
     }
   }
@@ -668,4 +670,6 @@ void parse_options(int argc, char ** argv)
       errx(EXIT_FAILURE, "problem with option '%s'", argv[ii]);
     }
   }
+  
+  simul_dt = 1.0 / servo_rate / simul_rate;
 }
