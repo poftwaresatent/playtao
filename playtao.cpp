@@ -172,7 +172,7 @@ int main(int argc, char ** argv)
     
     else if (ros_param_mode) {
       cout << "ROS parameter mode\n";
-      tao_container = parse_ros_parameter("pr2_stanford_wbc", "/robot_description");
+      tao_container = parse_ros_parameter("/pr2_stanford_wbc/", "/robot_description");
       tao_root = tao_container->getRoot();
     }
     

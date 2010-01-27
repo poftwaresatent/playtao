@@ -28,6 +28,7 @@
 #include <wbc/util/urdf_to_tao.hpp>
 #include <wbc/parse/TiXmlBRParser.hpp>
 #include <wbc/core/BranchingRepresentation.hpp>
+#include <wbc/ros/Model.hpp>
 #include <tao/dynamics/taoNode.h>
 
 
@@ -119,28 +120,27 @@ TAOContainer * parse_urdf_file(char const * filename, std::string const & tao_ro
 #endif // HAVE_URDF
 
 
-#ifndef HAVE_PR2_STANFORD_WBC
+#ifndef HAVE_ROS
 
 TAOContainer * parse_ros_parameter(std::string const & node_name,
 				   std::string const & urdf_param_name) throw(std::runtime_error)
 {
-  throw runtime_error("parse_ros_parameter() only available when the pr2_stanford_wbc ROS package is around");
+  throw runtime_error("parse_ros_parameter() only available when ROS support is built into WBC");
 }
 
-#else // HAVE_PR2_STANFORD_WBC
-
-#include <pr2_stanford_wbc/util.h>
+#else // HAVE_ROS
 
 
 class PR2TAOContainer: public TAOContainer {
 public:
-  PR2TAOContainer(std::string const & node_name)
-    : node(0)
+  PR2TAOContainer(std::string const & param_prefix)
+    : node(0),
+      model(param_prefix)
   {
     int argc(1);
     char * argv[1];
-    argv[0] = strdup("fake_node_for_playtao");
-    ros::init(argc, argv, node_name, ros::init_options::NoSigintHandler);
+    argv[0] = strdup("PR2TAOContainer");
+    ros::init(argc, argv, "PR2TAOContainer", ros::init_options::NoSigintHandler);
     free(argv[0]);
   }
   
@@ -151,7 +151,7 @@ public:
   
   void init(std::string const & urdf_param_name) throw(std::runtime_error)
   {
-    node = new ros::NodeHandle("~");
+    node = new ros::NodeHandle;//g("~");
     model.initFromParam(*node, urdf_param_name, 0);
   }
   
@@ -160,16 +160,16 @@ public:
   }
   
   ros::NodeHandle * node;
-  pr2_stanford_wbc::Model model;
+  wbcros::Model model;
 };
 
 
-TAOContainer * parse_ros_parameter(std::string const & node_name,
+TAOContainer * parse_ros_parameter(std::string const & param_prefix,
 				   std::string const & urdf_param_name) throw(std::runtime_error)
 {
-  PR2TAOContainer * container(new PR2TAOContainer(node_name));
+  PR2TAOContainer * container(new PR2TAOContainer(param_prefix));
   container->init(urdf_param_name);
   return container;
 }
 
-#endif // HAVE_PR2_STANFORD_WBC
+#endif // HAVE_ROS
