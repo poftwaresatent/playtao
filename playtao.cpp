@@ -267,7 +267,7 @@ void keyboard(unsigned char key, int x, int y)
 
 /** \note \c pos needs to point to a sufficiently large array, this
     function will happily read over its end otherwise. */
-void set_node_state(taoDNode * node, double const * pos)
+void set_node_state(taoDNode * node, double const * & pos)
 {
   for (taoJoint * joint(node->getJointList()); 0 != joint; joint = joint->getNext()) {
     // Well, at first it seems weird that taoJoint::setQ() etc expect
@@ -349,7 +349,8 @@ bool update()
       cerr << "WARNING in update(): pos.size() is " << pos.size() << " but should be " << ndof << "\n";
       pos.setSize(ndof, true);
     }
-    set_node_state(tao_root, &pos[0]);
+    double const * foo(&pos[0]);
+    set_node_state(tao_root, foo);
     taoDynamics::updateTransformation(tao_root);
   }
 
