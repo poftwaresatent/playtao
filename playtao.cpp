@@ -34,6 +34,7 @@
 #include <wbc/core/Plugin.hpp>
 #include <wbc/bin/builtin.hpp>
 #include <wbcnet/log.hpp>
+#include <wbcnet/strutil.hpp>
 
 #include <tao/dynamics/taoNode.h>
 #include <tao/dynamics/taoJoint.h>
@@ -73,15 +74,21 @@ static std::string robot_spec("");
 static std::string servo_spec("");
 static wbc::RobotAPI * robot_api(0);
 static wbc::BidirectionalRobotAPI * servo_api(0);
+static SAIVector servo_command;
+
 static std::string transform_filename("");
 static std::ofstream * transform_file(0);
-static double servo_rate(500.0); // Hz
-static int simul_rate(10);	 // multiple of servo_rate
-static double simul_dt(-1);	 // 1.0s / servo_rate / simul_rate
+static double simul_rate(500.0);
+static double simul_dt(0.002);
+static double servo_rate(250.0);
+static double servo_dt(0.004);
+static double gfx_rate(50.0);
+static unsigned int gfx_timer_ms(20);
+static size_t n_simul_per_servo(2);
+static size_t n_simul_per_gfx(10);
 static bool ros_param_mode(false);
 
-static unsigned int timer_delay(100);
-static size_t tick(0);
+static size_t simul_tick(0);
 static trackball_state * trackball;
 static int left_button_down(0);
 static int winwidth(400);
@@ -98,7 +105,7 @@ static int n_iterations(-1);	// -1 means graphics mode, user presses 'q' to quit
 static void usage(ostream & os);
 static void parse_options(int argc, char ** argv);
 static void init_glut(int * argc, char ** argv, int width, int height);
-static bool update();
+static bool update_simul();
 static void reshape(int width, int height);
 static void draw();
 static void keyboard(unsigned char key, int x, int y);
@@ -203,7 +210,7 @@ int main(int argc, char ** argv)
   }
   else {
     for (int ii(0); ii < n_iterations; ++ii) {
-      if ( ! update()) {
+      if ( ! update_simul()) {
 	break;
       }
     }
@@ -233,7 +240,7 @@ void init_glut(int * argc, char ** argv,
   glutDisplayFunc(draw);
   glutReshapeFunc(reshape);
   glutKeyboardFunc(keyboard);
-  glutTimerFunc(timer_delay, timer, handle);
+  glutTimerFunc(gfx_timer_ms, timer, handle);
   glutMouseFunc(mouse);
   glutMotionFunc(motion);
 }
@@ -333,49 +340,46 @@ static void dump_global_frames(std::ostream & os, taoDNode * node, std::string c
 }
 
 
-bool update()
+bool update_simul()
 {
   SAIVector pos(ndof);
   SAIVector vel(ndof);
-  SAIVector tau(ndof);
   struct timeval tstamp;
   
   if (robot_api) {
     if ( ! robot_api->readSensors(pos, vel, tstamp, 0)) {
-      cerr << "update(): robot_api->readSensors() failed\n";
+      cerr << "update_simul(): robot_api->readSensors() failed\n";
       return false;
     }
     if (pos.size() != ndof) {
-      cerr << "WARNING in update(): pos.size() is " << pos.size() << " but should be " << ndof << "\n";
+      cerr << "WARNING in update_simul(): pos.size() is " << pos.size() << " but should be " << ndof << "\n";
       pos.setSize(ndof, true);
     }
     double const * foo(&pos[0]);
     set_node_state(tao_root, foo);
     taoDynamics::updateTransformation(tao_root);
   }
-
+  
   else {
-    if (servo_api) {
+    bool const use_servo((0 != servo_api) && (0 == simul_tick % n_simul_per_servo));
+    if (use_servo) {
       get_node_state(tao_root, &pos[0], &vel[0]);
       if ( ! servo_api->writeSensors(pos, vel, 0)) {
-	errx(EXIT_FAILURE, "update(): servo_api->writeSensors() failed");
+	errx(EXIT_FAILURE, "update_simul(): servo_api->writeSensors() failed");
       }
-      if ( ! servo_api->readCommand(tau)) {
-	errx(EXIT_FAILURE, "update(): servo_api->readTorques() failed");
+      servo_command.setSize(ndof, true);
+      if ( ! servo_api->readCommand(servo_command)) {
+	errx(EXIT_FAILURE, "update_simul(): servo_api->readTorques() failed");
       }
     }
-    
-    for (size_t ii(0); ii < simul_rate; ++ii) {
-      taoDynamics::fwdDynamics(tao_root, &gravity);
-      if (servo_api) {
-	add_node_command(tao_root, &tau[0]);
-      }
-      taoDynamics::integrate(tao_root, simul_dt);
-      taoDynamics::updateTransformation(tao_root);
+    taoDynamics::fwdDynamics(tao_root, &gravity);
+    if (use_servo) {
+      add_node_command(tao_root, &servo_command[0]);
     }
+    taoDynamics::integrate(tao_root, simul_dt);
+    taoDynamics::updateTransformation(tao_root);
   }
   
-  ++tick;
   if (verbosity >= 2) {
     wbc::dump_tao_tree(cout, tao_root, "", true, 0, 0);
   }
@@ -387,6 +391,7 @@ bool update()
     dump_global_frames(*transform_file, tao_root->getDChild(), "  ");
   }
   
+  ++simul_tick;
   return true;
 }
 
@@ -394,10 +399,20 @@ bool update()
 void timer(int handle)
 {
   if (step || continuous) {
-    if (step)
+    if (step) {
       step = false;
-    if ( ! update()) {
-      errx(EXIT_FAILURE, "timer(): update() failed");
+      if ( ! update_simul()) {
+	errx(EXIT_FAILURE, "timer(): update_simul() failed");
+      }
+    }
+    else {
+      do {
+	if ( ! update_simul()) {
+	  errx(EXIT_FAILURE, "timer(): update_simul() failed");
+	}
+      }  // simul_tick gets incremented in update_simul(), unless it
+         // returns false, in which case we abort anyway.
+      while (0 != simul_tick % n_simul_per_gfx);
     }
   }
   
@@ -406,7 +421,7 @@ void timer(int handle)
   glutSetWindow(handle);
   glutPostRedisplay();
   
-  glutTimerFunc(timer_delay, timer, handle);
+  glutTimerFunc(gfx_timer_ms, timer, handle);
 }
 
 
@@ -459,7 +474,7 @@ static void draw_tree(taoDNode /*const*/ * node)
     deFrame home;
     home.multiply(*parent->frameGlobal(), *node->frameHome());
     
-    if ((prev_tick != tick) && (verbosity >= 2)) {
+    if ((prev_tick != simul_tick) && (verbosity >= 2)) {
       cout << "draw_tree(" << (void*) node << ")\n"
 	   << "  parent global:    " << *parent->frameGlobal() << "\n"
 	   << "  node home local:  " << *node->frameHome() << "\n"
@@ -484,7 +499,7 @@ static void draw_tree(taoDNode /*const*/ * node)
     com.translation() = *node->center();
     com.multiply(*node->frameGlobal(), deFrame(com));
     
-    if ((prev_tick != tick) && (verbosity >= 2)) {
+    if ((prev_tick != simul_tick) && (verbosity >= 2)) {
       cout << "  com local:        " << *node->center() << "\n"
 	   << "  node global:      " << *node->frameGlobal() << "\n"
 	   << "  com global:       " << com.translation() << "\n";
@@ -513,7 +528,7 @@ static void draw_tree(taoDNode /*const*/ * node)
   for (taoDNode * child(node->getDChild()); child != 0; child = child->getDSibling())
     draw_tree(child);
   
-  prev_tick = tick;
+  prev_tick = simul_tick;
 }
 
 
@@ -584,9 +599,10 @@ void usage(ostream & os)
      << "   -s <SAI file>    load SAI file (takes precedence)\n"
      << "   -u <URDF file>   load URDF file (unless a SAI file was specified, too)\n"
      << "   -f <filter file> load a link filter for the URDF conversion (only used with -u)\n"
-     << "   -R <robot spec>  retrieve joint angles from a robot at each tick\n"
-     << "   -S <servo spec>  retrieve torque commands from a servo at each tick\n"
-     << "   -t <filename>    write joint angles and link transforms to file at each tick\n";
+     << "   -R <robot spec>  retrieve joint angles from a robot at each simulation tick\n"
+     << "   -S <servo spec>  retrieve torque commands from a servo\n"
+     << "   -t <filename>    write joint angles and link transforms to file at each simulation tick\n"
+     << "   -T <simul:servo:gfx> specify update rates (in Hz) for the servo, the simulation, and the graphics\n";
 }
 
 
@@ -680,15 +696,50 @@ void parse_options(int argc, char ** argv)
 	errx(EXIT_FAILURE, "problem opening transform file \"%s\"", argv[ii]);
       }
       break;
+    case 'T':
+      ++ii;
+      if (ii >= argc) {
+	usage(cerr);
+	errx(EXIT_FAILURE, "-T requires an argument (see -h for more info)");
+      }
+      {
+	vector<string> token;
+	sfl::tokenize(argv[ii], ':', token);
+	sfl::token_to(token, 0, simul_rate);
+	sfl::token_to(token, 1, servo_rate);
+	sfl::token_to(token, 2, gfx_rate);
+	if (0 >= servo_rate) {
+	  usage(cerr);
+	  errx(EXIT_FAILURE, "invalid servo rate: %g Hz (must be > 0)", servo_rate);
+	}
+	if (simul_rate < servo_rate) {
+	  warnx("invalid simulation rate %g Hz adjusted to %g Hz", simul_rate, servo_rate);
+	  simul_rate = servo_rate;
+	}
+	if (gfx_rate > simul_rate) {
+	  warnx("invalid graphics rate %g Hz adjusted to %g Hz", gfx_rate, simul_rate);
+	  gfx_rate = simul_rate;
+	}
+	servo_dt = 1.0 / servo_rate;
+	simul_dt = 1.0 / simul_rate;
+	gfx_timer_ms = ceil(1000 / gfx_rate);
+	if (5 >= gfx_timer_ms) {
+	  warnx("invalid graphics timer %ud ms adjusted to 5 ms", gfx_timer_ms);
+	  gfx_timer_ms = 5;
+	}
+	n_simul_per_servo = ceil(simul_rate / servo_rate);
+	if (0 >= n_simul_per_servo) {
+	  n_simul_per_servo = 0;
+	}
+	n_simul_per_gfx = ceil(simul_rate / gfx_rate);
+	if (0 >= n_simul_per_gfx) {
+	  n_simul_per_gfx = 0;
+	}
+      }
+      break;
     default:
       usage(cerr);
       errx(EXIT_FAILURE, "problem with option '%s'", argv[ii]);
     }
-  }
-  
-  simul_dt = 1.0 / servo_rate / simul_rate;
-  
-  if ( ! servo_spec.empty()) {
-    timer_delay = 10;
   }
 }
