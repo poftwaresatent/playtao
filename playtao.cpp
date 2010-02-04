@@ -74,7 +74,7 @@ static std::string robot_spec("");
 static std::string servo_spec("");
 static wbc::RobotAPI * robot_api(0);
 static wbc::BidirectionalRobotAPI * servo_api(0);
-static SAIVector servo_command;
+static SAIVector servo_command(0);
 
 static std::string transform_filename("");
 static std::ofstream * transform_file(0);
@@ -373,7 +373,7 @@ bool update_simul()
       }
     }
     taoDynamics::fwdDynamics(tao_root, &gravity);
-    if (use_servo) {
+    if (servo_command.size() != 0) {
       add_node_command(tao_root, &servo_command[0]);
     }
     taoDynamics::integrate(tao_root, simul_dt);
