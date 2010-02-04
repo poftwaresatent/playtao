@@ -211,6 +211,9 @@
   
   <behavior>
     <type>PostureBehavior</type>
+    <whole_body_prop_gain>10</whole_body_prop_gain>
+    <whole_body_diff_gain>0</whole_body_diff_gain>
+    <whole_body_max_vel>0.5</whole_body_max_vel>
     <posture_key>a 0 0 0 0 0 0</posture_key>
     <posture_key>b 1 0 0 0 0 0</posture_key>
     <posture_key>c 0 1 0 0 0 0</posture_key>
