@@ -26,7 +26,7 @@
 
 #include "parse.hpp"
 #include "robot_api.hpp"
-#include <wbc/util/urdf_to_tao.hpp>
+#include <wbc/ros/urdf_to_tao.hpp>
 #include <wbc/util/dump.hpp>
 #include <wbc/util/tao_util.hpp>
 #include <wbc/core/RobotAPI.hpp>
@@ -162,11 +162,11 @@ int main(int argc, char ** argv)
       if (ros_param_mode) {
 	throw runtime_error("please use only one of the -s, -u, or -p options");
       }
-      shared_ptr<urdf_to_tao::FlatFileLinkFilter> link_filter;
+      shared_ptr<wbcros::FlatFileLinkFilter> link_filter;
       string root_name("world");
       if ( ! filter_filename.empty()) {
 	cout << "loading link filter file " << filter_filename << "\n";
-	link_filter.reset(new urdf_to_tao::FlatFileLinkFilter());
+	link_filter.reset(new wbcros::FlatFileLinkFilter());
 	link_filter->Load(filter_filename);
 	root_name = link_filter->GetRootName();
       }

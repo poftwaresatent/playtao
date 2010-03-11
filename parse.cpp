@@ -25,7 +25,7 @@
 */
 
 #include "parse.hpp"
-#include <wbc/util/urdf_to_tao.hpp>
+#include <wbc/ros/urdf_to_tao.hpp>
 #include <wbc/parse/TiXmlBRParser.hpp>
 #include <wbc/core/BranchingRepresentation.hpp>
 #include <wbc/ros/Model.hpp>
@@ -61,7 +61,7 @@ TAOContainer * parse_sai_xml_file(char const * filename) throw(std::runtime_erro
 #ifndef HAVE_URDF
 
 TAOContainer * parse_urdf_file(char const * filename, std::string const & tao_root_name,
-			      urdf_to_tao::LinkFilter const * opt_link_filter,
+			      wbcros::LinkFilter const * opt_link_filter,
 			      std::vector<std::string> * tao_id_to_link_name_map,
 			      std::vector<std::string> * tao_id_to_joint_name_map) throw(std::runtime_error)
 {
@@ -77,23 +77,23 @@ TAOContainer * parse_urdf_file(char const * filename, std::string const & tao_ro
 
 class URDFTAOContainer: public TAOContainer {
 public:
-  URDFTAOContainer(taoNodeRoot * root_)
-    : root(root_) { }
+  URDFTAOContainer(wbc::tao_tree_info_s * tree_)
+    : tree(tree_) { }
   
   virtual ~URDFTAOContainer() {
-    delete root;
+    delete tree;
   }
   
   virtual taoNodeRoot * getRoot() {
-    return root;
+    return tree->root;
   }
   
-  taoNodeRoot * root;
+  wbc::tao_tree_info_s * tree;
 };
 
 
 TAOContainer * parse_urdf_file(char const * filename, std::string const & tao_root_name,
-			      urdf_to_tao::LinkFilter const * opt_link_filter,
+			      wbcros::LinkFilter const * opt_link_filter,
 			      std::vector<std::string> * tao_id_to_link_name_map,
 			      std::vector<std::string> * tao_id_to_joint_name_map) throw(std::runtime_error)
 {
@@ -103,18 +103,31 @@ TAOContainer * parse_urdf_file(char const * filename, std::string const & tao_ro
   if ( ! urdf_model.initXml(&urdf_xml)) {
     throw runtime_error("parse_urdf_file(" + string(filename) + "): urdf::Model::initXml() failed");
   }
+  wbc::tao_tree_info_s * tree;
   if (opt_link_filter) {
-    return new URDFTAOContainer(urdf_to_tao::convert(urdf_model,
-						     tao_root_name,
-						     *opt_link_filter,
-						     tao_id_to_link_name_map,
-						     tao_id_to_joint_name_map));
+    tree = wbcros::convert_urdf_to_tao(urdf_model, tao_root_name, *opt_link_filter);
   }
-  return new URDFTAOContainer(urdf_to_tao::convert(urdf_model,
-						   tao_root_name,
-						   urdf_to_tao::DefaultLinkFilter(),
-						   tao_id_to_link_name_map,
-						   tao_id_to_joint_name_map));
+  else {
+    tree = wbcros::convert_urdf_to_tao(urdf_model, tao_root_name, wbcros::DefaultLinkFilter());
+  }
+  
+  if (tao_id_to_link_name_map) {
+    size_t const nn(tree->info.size());
+    tao_id_to_link_name_map->resize(nn);
+    for (size_t ii(0); ii < nn; ++ii) {
+      (*tao_id_to_link_name_map)[ii] = tree->info[ii].link_name;
+    }
+  }
+  
+  if (tao_id_to_joint_name_map) {
+    size_t const nn(tree->info.size());
+    tao_id_to_joint_name_map->resize(nn);
+    for (size_t ii(0); ii < nn; ++ii) {
+      (*tao_id_to_joint_name_map)[ii] = tree->info[ii].joint_name;
+    }
+  }
+  
+  return new URDFTAOContainer(tree);
 }
 
 #endif // HAVE_URDF
@@ -152,11 +165,11 @@ public:
   void init(std::string const & urdf_param_name) throw(std::runtime_error)
   {
     node = new ros::NodeHandle;//g("~");
-    model.initFromParam(*node, urdf_param_name, 0);
+    model.initFromParam(*node, urdf_param_name, 0, 1);
   }
   
   virtual taoNodeRoot * getRoot() {
-    return model.tao_root_node_;
+    return model.tao_trees_[0]->root;
   }
   
   ros::NodeHandle * node;
