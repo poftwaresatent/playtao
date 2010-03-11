@@ -54,6 +54,14 @@ namespace gfx {
 		<< ", " << b.x1 << ", " << b.y1 << ")";
     }
     
+    template<typename T2>
+    void update(T2 xx, T2 yy) {
+      if (xx < x0) x0 = xx;
+      if (xx > x1) x1 = xx;
+      if (yy < y0) y0 = yy;
+      if (yy > y1) y1 = yy;
+    }
+    
     T x0, y0, x1, y1;
   };
   

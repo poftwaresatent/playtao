@@ -92,6 +92,7 @@ static trackball_state * trackball;
 static int left_button_down(0);
 static int winwidth(400);
 static int winheight(400);
+static gfx::logical_bbox_t yz_bbox(-1, -1, 1, 1);
 
 static bool step(true);
 static bool continuous(false);
@@ -191,9 +192,7 @@ int main(int argc, char ** argv)
     errx(EXIT_FAILURE, "EXCEPTION: %s", ee.what());
   }
   
-  if (verbosity >= 1) {
-    wbc::dump_tao_tree_info(cout, tao_tree, "FINAL  ", false);
-  }
+  wbc::dump_tao_tree_info(cout, tao_tree, "FINAL  ", false);
   
   if (n_iterations < 0) {
     trackball = gltrackball_init();
@@ -379,7 +378,8 @@ bool update_simul()
   compute_g_and_b(pos, vel, grav, cori);
   fprintf(stdout, " position velocity gravity  Coriolis\n");
   for (size_t ii(0); ii < tao_tree->info.size(); ++ii) {
-    fprintf(stdout, "% 7.4f % 7.4f % 7.4f % 7.4f \n", pos[ii], vel[ii], grav[ii], cori[ii]);
+    fprintf(stdout, "% 7.4f % 7.4f % 7.4f % 7.4f \n",
+	    pos[ii] * 180 / M_PI, vel[ii] * 180 / M_PI, grav[ii] / 9.81, cori[ii]);
   }
   
   if (verbosity >= 2) {
@@ -483,6 +483,11 @@ static void draw_tree(taoDNode /*const*/ * node)
 	   << "  node home global: " << home << "\n";
     }
     
+    yz_bbox.update(parent->frameGlobal()->translation()[1],
+		   parent->frameGlobal()->translation()[2]);
+    yz_bbox.update(home.translation()[1],
+		   home.translation()[2]);
+    
     glLineWidth(3);
     glColor3d(0.5, 0.5, 0.5);
     glBegin(GL_LINES);
@@ -506,6 +511,11 @@ static void draw_tree(taoDNode /*const*/ * node)
 	   << "  node global:      " << *node->frameGlobal() << "\n"
 	   << "  com global:       " << com.translation() << "\n";
     }
+    
+    yz_bbox.update(node->frameGlobal()->translation()[1],
+		   node->frameGlobal()->translation()[2]);
+    yz_bbox.update(com.translation()[1],
+		   com.translation()[2]);
     
     glLineWidth(1);
     glColor3d(0.5, 1, 0.5);
@@ -545,9 +555,12 @@ void draw()
   
   static Viewport * view(0);
   if ( ! view) {
-    view = new Viewport("view", logical_bbox_t(-2, -2, 2, 2), logical_bbox_t(0, 0, 1, 1));
+    view = new Viewport("view", yz_bbox, logical_bbox_t(0, 0, 1, 1));
     ////view->SetMousehandler(Viewport::LEFT, m_mouse_meta);
     view->Enable();
+  }
+  else {
+    view->Remap(yz_bbox);
   }
   
   view->PushProjection();
@@ -757,6 +770,7 @@ void compute_g_and_b(SAIVector const & pos, SAIVector const & vel,
     joint->setQ(&pos[ii]);
     joint->zeroDQ();
     joint->zeroDDQ();
+    joint->zeroTau();
   }
   taoDynamics::invDynamics(gtree->root, &gravity);
   for (size_t ii(0); ii < gtree->info.size(); ++ii) {
