@@ -1,0 +1,23 @@
+<?xml version="1.0" ?>
+
+<dynworld>
+  <baseNode>
+    <gravity>0, 0, -9.81</gravity>
+    <pos>0, 0, 0</pos>
+    <rot>1, 0, 0, 0</rot>
+    
+    <jointNode>
+      <ID>0</ID>
+      <type>R</type>
+      <axis>X</axis>
+      <mass>1</mass>
+      <!-- arghl, the parser ADDS this to the inertia already due to the mass!!!
+           <inertia>1.0, 0, 1.0</inertia> -->
+      <inertia>0, 0, 0</inertia>
+      <com>0, 1, 0</com>
+      <pos>0, 0, 0</pos>
+      <rot>0, 0, 1, 0</rot>
+    </jointNode>
+  </baseNode>
+  
+</dynworld>
