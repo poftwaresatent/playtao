@@ -31,6 +31,10 @@
 #include <vector>
 #include <string>
 
+namespace wbc {
+  struct tao_tree_info_s;
+}
+
 namespace wbcros {
   class LinkFilter;
 }
@@ -40,15 +44,15 @@ class taoNodeRoot;
 class TAOContainer {
 public:
   virtual ~TAOContainer() {}
-  virtual taoNodeRoot * getRoot() = 0;
+  virtual wbc::tao_tree_info_s * getTree() = 0;
+  virtual wbc::tao_tree_info_s * getGTree() = 0;
+  virtual wbc::tao_tree_info_s * getBTree() = 0;
 };
 
 TAOContainer * parse_sai_xml_file(char const * filename) throw(std::runtime_error);
 
 TAOContainer * parse_urdf_file(char const * filename, std::string const & tao_root_name,
-			       wbcros::LinkFilter const * opt_link_filter,
-			       std::vector<std::string> * tao_id_to_link_name_map,
-			       std::vector<std::string> * tao_id_to_joint_name_map) throw(std::runtime_error);
+			       wbcros::LinkFilter const * opt_link_filter) throw(std::runtime_error);
 
 TAOContainer * parse_ros_parameter(/** You probably want to say "/pr2_stanford_wbc/" here. */
 				   std::string const & param_prefix,

@@ -66,9 +66,8 @@ using namespace std;
 
 
 static TAOContainer * tao_container(0);
-static taoNodeRoot * tao_root(0);	// this gets deleted for us by the TAOContainer dtor
+static wbc::tao_tree_info_s * tao_tree(0); // this gets deleted for us by the TAOContainer dtor
 static deVector3 gravity(0, 0, -9.81);
-static int ndof(0);
 static wbc::Extensions * wbc_extensions(0);
 static std::string robot_spec("");
 static std::string servo_spec("");
@@ -114,6 +113,8 @@ static void mouse(int button, int state, int x, int y);
 static void motion(int x, int y);
 static void cleanup(void);
 static void handle(int signum);
+static void compute_g_and_b(SAIVector const & pos, SAIVector const & vel,
+			    SAIVector & grav, SAIVector & cori);
 
 
 int main(int argc, char ** argv)
@@ -128,8 +129,6 @@ int main(int argc, char ** argv)
     err(EXIT_FAILURE, "signal(SIGTERM)");
   
   wbcnet::configure_logging();
-  std::vector<std::string> id_to_link_name; // only for URDF -> TAO conversion though...
-  std::vector<std::string> id_to_joint_name; // only for URDF -> TAO conversion though...
   
   parse_options(argc, argv);
   wbcnet::manual_logging_verbosity(verbosity);
@@ -155,7 +154,7 @@ int main(int argc, char ** argv)
       }
       cout << "loading SAI file " << sai_filename << "\n";
       tao_container = parse_sai_xml_file(sai_filename.c_str());
-      tao_root = tao_container->getRoot();
+      tao_tree = tao_container->getTree();
     }
     
     else if ( ! urdf_filename.empty()) {
@@ -172,15 +171,14 @@ int main(int argc, char ** argv)
       }
       cout << "root name is " << root_name << "\n"
 	   << "loading URDF file " << urdf_filename << "\n";      
-      tao_container = parse_urdf_file(urdf_filename.c_str(), root_name, link_filter.get(),
-				      &id_to_link_name, &id_to_joint_name);
-      tao_root = tao_container->getRoot();
+      tao_container = parse_urdf_file(urdf_filename.c_str(), root_name, link_filter.get());
+      tao_tree = tao_container->getTree();
     }
     
     else if (ros_param_mode) {
       cout << "ROS parameter mode\n";
       tao_container = parse_ros_parameter("/pr2_stanford_wbc/", "/robot_description");
-      tao_root = tao_container->getRoot();
+      tao_tree = tao_container->getTree();
     }
     
     else {
@@ -193,15 +191,9 @@ int main(int argc, char ** argv)
     errx(EXIT_FAILURE, "EXCEPTION: %s", ee.what());
   }
   
-  if (0 == tao_root)
-    errx(EXIT_FAILURE, "oops, no TAO root after all that effort?");
-  
   if (verbosity >= 1) {
-    wbc::dump_tao_tree(cout, tao_root, "FINAL  ", false, &id_to_link_name, &id_to_joint_name);
+    wbc::dump_tao_tree_info(cout, tao_tree, "FINAL  ", false);
   }
-  
-  ndof = wbc::countDegreesOfFreedom(tao_root);
-  taoDynamics::initialize(tao_root);
   
   if (n_iterations < 0) {
     trackball = gltrackball_init();
@@ -342,8 +334,8 @@ static void dump_global_frames(std::ostream & os, taoDNode * node, std::string c
 
 bool update_simul()
 {
-  SAIVector pos(ndof);
-  SAIVector vel(ndof);
+  SAIVector pos(tao_tree->info.size());
+  SAIVector vel(tao_tree->info.size());
   struct timeval tstamp;
   
   if (robot_api) {
@@ -351,44 +343,54 @@ bool update_simul()
       cerr << "update_simul(): robot_api->readSensors() failed\n";
       return false;
     }
-    if (pos.size() != ndof) {
-      cerr << "WARNING in update_simul(): pos.size() is " << pos.size() << " but should be " << ndof << "\n";
-      pos.setSize(ndof, true);
+    if (static_cast<size_t>(pos.size()) != tao_tree->info.size()) {
+      cerr << "WARNING in update_simul(): pos.size() is " << pos.size()
+	   << " but should be " << tao_tree->info.size() << "\n";
+      pos.setSize(tao_tree->info.size(), true);
     }
     double const * foo(&pos[0]);
-    set_node_state(tao_root, foo);
-    taoDynamics::updateTransformation(tao_root);
+    set_node_state(tao_tree->root, foo);
+    taoDynamics::updateTransformation(tao_tree->root);
   }
   
   else {
     bool const use_servo((0 != servo_api) && (0 == simul_tick % n_simul_per_servo));
+    get_node_state(tao_tree->root, &pos[0], &vel[0]);
     if (use_servo) {
-      get_node_state(tao_root, &pos[0], &vel[0]);
       if ( ! servo_api->writeSensors(pos, vel, 0)) {
 	errx(EXIT_FAILURE, "update_simul(): servo_api->writeSensors() failed");
       }
-      servo_command.setSize(ndof, true);
+      servo_command.setSize(tao_tree->info.size(), true);
       if ( ! servo_api->readCommand(servo_command)) {
 	errx(EXIT_FAILURE, "update_simul(): servo_api->readTorques() failed");
       }
     }
-    taoDynamics::fwdDynamics(tao_root, &gravity);
+    taoDynamics::fwdDynamics(tao_tree->root, &gravity);
+    
     if (servo_command.size() != 0) {
-      add_node_command(tao_root, &servo_command[0]);
+      add_node_command(tao_tree->root, &servo_command[0]);
     }
-    taoDynamics::integrate(tao_root, simul_dt);
-    taoDynamics::updateTransformation(tao_root);
+    taoDynamics::integrate(tao_tree->root, simul_dt);
+    taoDynamics::updateTransformation(tao_tree->root);
+  }
+  
+  SAIVector grav(tao_tree->info.size());
+  SAIVector cori(tao_tree->info.size());
+  compute_g_and_b(pos, vel, grav, cori);
+  fprintf(stdout, " position velocity gravity  Coriolis\n");
+  for (size_t ii(0); ii < tao_tree->info.size(); ++ii) {
+    fprintf(stdout, "% 7.4f % 7.4f % 7.4f % 7.4f \n", pos[ii], vel[ii], grav[ii], cori[ii]);
   }
   
   if (verbosity >= 2) {
-    wbc::dump_tao_tree(cout, tao_root, "", true, 0, 0);
+    wbc::dump_tao_tree_info(cout, tao_tree, "", true);
   }
   
   if (transform_file) {
     (*transform_file) << "==================================================\n"
 		      << "joint_positions:\t" << pos << "\n"
 		      << "link_origins:\n";
-    dump_global_frames(*transform_file, tao_root->getDChild(), "  ");
+    dump_global_frames(*transform_file, tao_tree->root->getDChild(), "  ");
   }
   
   ++simul_tick;
@@ -569,7 +571,7 @@ void draw()
   glVertex3d(0, 0, 1);
   glEnd();
   
-  draw_tree(tao_root);
+  draw_tree(tao_tree->root);
   
   view->PopProjection();
   
@@ -741,5 +743,38 @@ void parse_options(int argc, char ** argv)
       usage(cerr);
       errx(EXIT_FAILURE, "problem with option '%s'", argv[ii]);
     }
+  }
+}
+
+
+// only supports one dof per joint and one joint per node
+void compute_g_and_b(SAIVector const & pos, SAIVector const & vel,
+		     SAIVector & grav, SAIVector & cori)
+{
+  wbc::tao_tree_info_s * gtree(tao_container->getGTree());
+  for (size_t ii(0); ii < gtree->info.size(); ++ii) {
+    taoJoint * joint(gtree->info[ii].node->getJointList());
+    joint->setQ(&pos[ii]);
+    joint->zeroDQ();
+    joint->zeroDDQ();
+  }
+  taoDynamics::invDynamics(gtree->root, &gravity);
+  for (size_t ii(0); ii < gtree->info.size(); ++ii) {
+    taoJoint * joint(gtree->info[ii].node->getJointList());
+    joint->getTau(&grav[ii]);
+  }
+  
+  static deVector3 const zero_gravity(0, 0, 0);
+  wbc::tao_tree_info_s * btree(tao_container->getBTree());
+  for (size_t ii(0); ii < btree->info.size(); ++ii) {
+    taoJoint * joint(btree->info[ii].node->getJointList());
+    joint->setQ(&pos[ii]);
+    joint->setDQ(&vel[ii]);
+    joint->zeroDDQ();
+  }
+  taoDynamics::invDynamics(btree->root, &zero_gravity);
+  for (size_t ii(0); ii < btree->info.size(); ++ii) {
+    taoJoint * joint(btree->info[ii].node->getJointList());
+    joint->getTau(&cori[ii]);
   }
 }

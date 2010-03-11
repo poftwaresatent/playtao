@@ -30,23 +30,53 @@
 #include <wbc/core/BranchingRepresentation.hpp>
 #include <wbc/ros/Model.hpp>
 #include <tao/dynamics/taoNode.h>
+#include <tao/dynamics/taoDynamics.h>
 
 
 class SAITAOContainer: public TAOContainer {
 public:
-  SAITAOContainer(wbc::BranchingRepresentation * brep_)
-    : brep(brep_) { }
-  
-  virtual ~SAITAOContainer() {
-    delete brep->rootNode(); // Yes, that's right, nobody felt it was necessary to delete this dude in WBC.
-    delete brep;
+  SAITAOContainer(wbc::BranchingRepresentation * brep_,
+		  wbc::BranchingRepresentation * brepg_,
+		  wbc::BranchingRepresentation * brepb_)
+    : brep(brep_),
+      brepg(brepg_),
+      brepb(brepb_),
+      tree(wbc::create_tao_tree_info(*brep_)),
+      treeg(wbc::create_tao_tree_info(*brepg_)),
+      treeb(wbc::create_tao_tree_info(*brepb_))
+  {
+    taoDynamics::initialize(tree->root);
+    taoDynamics::initialize(treeg->root);
+    taoDynamics::initialize(treeb->root);
   }
   
-  virtual taoNodeRoot * getRoot() {
-    return brep->rootNode();
+  virtual ~SAITAOContainer() {
+    delete tree;
+    delete treeg;
+    delete treeb;
+    delete brep;
+    delete brepg;
+    delete brepb;
+  }
+  
+  virtual wbc::tao_tree_info_s * getTree() {
+    return tree;
+  }
+  
+  virtual wbc::tao_tree_info_s * getGTree() {
+    return treeg;
+  }
+  
+  virtual wbc::tao_tree_info_s * getBTree() {
+    return treeb;
   }
   
   wbc::BranchingRepresentation * brep;
+  wbc::BranchingRepresentation * brepg;
+  wbc::BranchingRepresentation * brepb;
+  wbc::tao_tree_info_s * tree;
+  wbc::tao_tree_info_s * treeg;
+  wbc::tao_tree_info_s * treeb;
 };
 
 
@@ -54,7 +84,10 @@ public:
 TAOContainer * parse_sai_xml_file(char const * filename) throw(std::runtime_error)
 {
   wbc::TiXmlBRParser parser;
-  return new SAITAOContainer(parser.parse(filename));
+  wbc::BranchingRepresentation * brep(parser.parse(filename));
+  wbc::BranchingRepresentation * brepg(parser.parse(filename));
+  wbc::BranchingRepresentation * brepb(parser.parse(filename));
+  return new SAITAOContainer(brep, brepg, brepb);
 }
 
 
@@ -77,25 +110,44 @@ TAOContainer * parse_urdf_file(char const * filename, std::string const & tao_ro
 
 class URDFTAOContainer: public TAOContainer {
 public:
-  URDFTAOContainer(wbc::tao_tree_info_s * tree_)
-    : tree(tree_) { }
+  URDFTAOContainer(wbc::tao_tree_info_s * tree_,
+		   wbc::tao_tree_info_s * treeg_,
+		   wbc::tao_tree_info_s * treeb_)
+    : tree(tree_),
+      treeg(treeg_),
+      treeb(treeb_)
+  {
+    taoDynamics::initialize(tree->root);
+    taoDynamics::initialize(treeg->root);
+    taoDynamics::initialize(treeb->root);
+  }
   
   virtual ~URDFTAOContainer() {
     delete tree;
+    delete treeg;
+    delete treeb;
   }
   
-  virtual taoNodeRoot * getRoot() {
-    return tree->root;
+  virtual wbc::tao_tree_info_s * getTree() {
+    return tree;
+  }
+  
+  virtual wbc::tao_tree_info_s * getGTree() {
+    return treeg;
+  }
+  
+  virtual wbc::tao_tree_info_s * getBTree() {
+    return treeb;
   }
   
   wbc::tao_tree_info_s * tree;
+  wbc::tao_tree_info_s * treeg;
+  wbc::tao_tree_info_s * treeb;
 };
 
 
 TAOContainer * parse_urdf_file(char const * filename, std::string const & tao_root_name,
-			      wbcros::LinkFilter const * opt_link_filter,
-			      std::vector<std::string> * tao_id_to_link_name_map,
-			      std::vector<std::string> * tao_id_to_joint_name_map) throw(std::runtime_error)
+			      wbcros::LinkFilter const * opt_link_filter) throw(std::runtime_error)
 {
   TiXmlDocument urdf_xml;
   urdf_xml.LoadFile(filename);
@@ -103,31 +155,16 @@ TAOContainer * parse_urdf_file(char const * filename, std::string const & tao_ro
   if ( ! urdf_model.initXml(&urdf_xml)) {
     throw runtime_error("parse_urdf_file(" + string(filename) + "): urdf::Model::initXml() failed");
   }
-  wbc::tao_tree_info_s * tree;
+  
+  std::vector<wbc::tao_tree_info_s*> trees;
   if (opt_link_filter) {
-    tree = wbcros::convert_urdf_to_tao(urdf_model, tao_root_name, *opt_link_filter);
+    wbcros::convert_urdf_to_tao_n(urdf_model, tao_root_name, *opt_link_filter, trees, 3);
   }
   else {
-    tree = wbcros::convert_urdf_to_tao(urdf_model, tao_root_name, wbcros::DefaultLinkFilter());
+    wbcros::convert_urdf_to_tao_n(urdf_model, tao_root_name, wbcros::DefaultLinkFilter(), trees, 3);
   }
   
-  if (tao_id_to_link_name_map) {
-    size_t const nn(tree->info.size());
-    tao_id_to_link_name_map->resize(nn);
-    for (size_t ii(0); ii < nn; ++ii) {
-      (*tao_id_to_link_name_map)[ii] = tree->info[ii].link_name;
-    }
-  }
-  
-  if (tao_id_to_joint_name_map) {
-    size_t const nn(tree->info.size());
-    tao_id_to_joint_name_map->resize(nn);
-    for (size_t ii(0); ii < nn; ++ii) {
-      (*tao_id_to_joint_name_map)[ii] = tree->info[ii].joint_name;
-    }
-  }
-  
-  return new URDFTAOContainer(tree);
+  return new URDFTAOContainer(trees[0], trees[1], trees[2]);
 }
 
 #endif // HAVE_URDF
@@ -165,11 +202,22 @@ public:
   void init(std::string const & urdf_param_name) throw(std::runtime_error)
   {
     node = new ros::NodeHandle;//g("~");
-    model.initFromParam(*node, urdf_param_name, 0, 1);
+    model.initFromParam(*node, urdf_param_name, 0, 3);
+    taoDynamics::initialize(model.tao_trees_[0]->root);
+    taoDynamics::initialize(model.tao_trees_[1]->root);
+    taoDynamics::initialize(model.tao_trees_[2]->root);
   }
   
-  virtual taoNodeRoot * getRoot() {
-    return model.tao_trees_[0]->root;
+  virtual wbc::tao_tree_info_s * getTree() {
+    return model.tao_trees_[0];
+  }
+  
+  virtual wbc::tao_tree_info_s * getGTree() {
+    return model.tao_trees_[1];
+  }
+  
+  virtual wbc::tao_tree_info_s * getBTree() {
+    return model.tao_trees_[2];
   }
   
   ros::NodeHandle * node;
