@@ -376,10 +376,12 @@ bool update_simul()
   SAIVector grav(tao_tree->info.size());
   SAIVector cori(tao_tree->info.size());
   compute_g_and_b(pos, vel, grav, cori);
-  fprintf(stdout, " position velocity gravity  Coriolis\n");
-  for (size_t ii(0); ii < tao_tree->info.size(); ++ii) {
-    fprintf(stdout, "% 7.4f % 7.4f % 7.4f % 7.4f \n",
-	    pos[ii] * 180 / M_PI, vel[ii] * 180 / M_PI, grav[ii] / 9.81, cori[ii]);
+  if (verbosity > 0) {
+    fprintf(stdout, " position velocity gravity  Coriolis\n");
+    for (size_t ii(0); ii < tao_tree->info.size(); ++ii) {
+      fprintf(stdout, "% 7.4f % 7.4f % 7.4f % 7.4f \n",
+	      pos[ii] * 180 / M_PI, vel[ii] * 180 / M_PI, grav[ii] / 9.81, cori[ii]);
+    }
   }
   
   if (verbosity >= 2) {
