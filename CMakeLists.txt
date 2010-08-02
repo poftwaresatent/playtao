@@ -53,7 +53,8 @@ if (JSPACE_DIR)
   message ("using JSPACE_DIR ${JSPACE_DIR}")
   list (APPEND CMAKE_REQUIRED_INCLUDES ${JSPACE_DIR}/include ${JSPACE_DIR} ${JSPACE_DIR}/jspace)
   include_directories (${JSPACE_DIR}/include ${JSPACE_DIR} ${JSPACE_DIR}/jspace)
-  link_directories (${JSPACE_DIR}/lib ${JSPACE_DIR} ${JSPACE_DIR}/jspace)
+  link_directories (${JSPACE_DIR}/lib ${JSPACE_DIR} ${JSPACE_DIR}/jspace
+    ${JSPACE_DIR}/build ${JSPACE_DIR}/build/jspace)
 endif (JSPACE_DIR)
 #check_include_file_cxx (jspace/Model.hpp HAVE_JSPACE)
 #if (${HAVE_JSPACE})
@@ -107,7 +108,7 @@ include_directories (
   ${GLUT_INCLUDE_DIR})
 
 file (GLOB SOURCES gfx/*.cpp gfx/*.c *.cpp)
-list (APPEND LIBS ${GLUT_LIBRARIES} ${OPENGL_LIBRARIES} jspace )
+list (APPEND LIBS ${GLUT_LIBRARIES} ${OPENGL_LIBRARIES} jspace_test)
 
 add_executable (playtao ${SOURCES})
 target_link_libraries (playtao ${LIBS})
