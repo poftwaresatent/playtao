@@ -29,9 +29,8 @@
 #include <jspace/Model.hpp>
 #include <jspace/RobotAPI.hpp>
 #include <jspace/tao_dump.hpp>
-// Should probably rearrange jspace so that we can include <jspace/tests/foo.hpp> here.
-#include <tests/sai_brep.hpp>
-#include <tests/sai_brep_parser.hpp>
+#include <jspace/test/sai_brep.hpp>
+#include <jspace/test/sai_brep_parser.hpp>
 
 #include <tao/dynamics/taoNode.h>
 #include <tao/dynamics/taoJoint.h>
