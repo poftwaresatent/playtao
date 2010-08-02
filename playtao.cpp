@@ -24,7 +24,10 @@
    \author Roland Philippsen
 */
 
+#include "strutil.hpp"
+
 #include <jspace/Model.hpp>
+#include <jspace/RobotAPI.hpp>
 #include <jspace/tao_dump.hpp>
 // Should probably rearrange jspace so that we can include <jspace/tests/foo.hpp> here.
 #include <tests/sai_brep.hpp>
@@ -68,9 +71,11 @@ static unsigned int gfx_timer_ms(20);
 static size_t n_simul_per_servo(2);
 static size_t n_simul_per_gfx(10);
 
-static boost::shared_ptr<jspace::Model> jspace_model;
+static boost::shared_ptr<jspace::Model> model;
+static boost::shared_ptr<jspace::RobotAPI> robot_api;
+static size_t ndof;
 
-static size_t simul_tick(0);
+static size_t tick(0);
 static trackball_state * trackball;
 static int left_button_down(0);
 static int winwidth(400);
@@ -86,7 +91,7 @@ static int n_iterations(-1);	// -1 means graphics mode, user presses 'q' to quit
 static void usage(ostream & os);
 static void parse_options(int argc, char ** argv);
 static void init_glut(int * argc, char ** argv, int width, int height);
-static bool update_simul();
+static bool update();
 static void reshape(int width, int height);
 static void draw();
 static void keyboard(unsigned char key, int x, int y);
@@ -126,7 +131,8 @@ int main(int argc, char ** argv)
     brep = brp.parse(sai_filename); // parse it again to create a second copy for Coriolis / centrifugal
     jspace::tao_tree_info_s * cc_tree(brep->createTreeInfo());
     delete brep;
-    jspace_model.reset(new jspace::Model(kgm_tree, cc_tree));
+    model.reset(new jspace::Model(kgm_tree, cc_tree));
+    ndof = model->getNDOF();
     
     if (n_iterations < 0) {
       trackball = gltrackball_init();
@@ -135,7 +141,7 @@ int main(int argc, char ** argv)
     }
     else {
       for (int ii(0); ii < n_iterations; ++ii) {
-	if ( ! update_simul()) {
+	if ( ! update()) {
 	  break;
 	}
       }
@@ -261,80 +267,50 @@ void add_node_command(taoDNode * node, double const * tau)
 }
 
 
-static void dump_global_frames(std::ostream & os, taoDNode * node, std::string const & prefix)
-{
-  os << prefix << "ID " << node->getID() << ": " << *node->frameGlobal() << "\n";
-  for (taoDNode * child(node->getDChild()); child != 0; child = child->getDSibling()) {
-    dump_global_frames(os, child, prefix);
-  }
-}
+//// maybe resurrect here or in jspace/tao_dump.hpp
+//
+// static void dump_global_frames(std::ostream & os, taoDNode * node, std::string const & prefix)
+// {
+//   os << prefix << "ID " << node->getID() << ": " << *node->frameGlobal() << "\n";
+//   for (taoDNode * child(node->getDChild()); child != 0; child = child->getDSibling()) {
+//     dump_global_frames(os, child, prefix);
+//   }
+// }
 
 
-bool update_simul()
+bool update()
 {
-  SAIVector pos(tao_tree->info.size());
-  SAIVector vel(tao_tree->info.size());
-  struct timeval tstamp;
+  jspace::State state;
   
-  if (robot_api) {
-    if ( ! robot_api->readSensors(pos, vel, tstamp, 0)) {
-      cerr << "update_simul(): robot_api->readSensors() failed\n";
+  if ( ! robot_api) {
+    state.init(ndof, ndof, 0);
+  }
+  else {
+    jspace::Status status(robot_api->readState(state));
+    if ( ! status) {
+      cerr << "update(): robot_api->readState() failed: " << status.errstr << "\n";
       return false;
     }
-    if (static_cast<size_t>(pos.size()) != tao_tree->info.size()) {
-      cerr << "WARNING in update_simul(): pos.size() is " << pos.size()
-	   << " but should be " << tao_tree->info.size() << "\n";
-      pos.setSize(tao_tree->info.size(), true);
+    if (state.position_.size() != ndof) {
+      cerr << "update(): WARNING state has " << state.position_.size()
+	   << " DOF but should have " << ndof << "\n";
     }
-    double const * foo(&pos[0]);
-    set_node_state(tao_tree->root, foo);
-    taoDynamics::updateTransformation(tao_tree->root);
   }
   
-  else {
-    bool const use_servo((0 != servo_api) && (0 == simul_tick % n_simul_per_servo));
-    get_node_state(tao_tree->root, &pos[0], &vel[0]);
-    if (use_servo) {
-      if ( ! servo_api->writeSensors(pos, vel, 0)) {
-	errx(EXIT_FAILURE, "update_simul(): servo_api->writeSensors() failed");
-      }
-      servo_command.setSize(tao_tree->info.size(), true);
-      if ( ! servo_api->readCommand(servo_command)) {
-	errx(EXIT_FAILURE, "update_simul(): servo_api->readTorques() failed");
-      }
-    }
-    taoDynamics::fwdDynamics(tao_tree->root, &earth_gravity);
-    
-    if (servo_command.size() != 0) {
-      add_node_command(tao_tree->root, &servo_command[0]);
-    }
-    taoDynamics::integrate(tao_tree->root, simul_dt);
-    taoDynamics::updateTransformation(tao_tree->root);
-  }
-  
-  SAIVector grav(tao_tree->info.size());
-  SAIVector cori(tao_tree->info.size());
-  compute_g_and_b(pos, vel, grav, cori);
-  if (verbosity > 0) {
-    fprintf(stdout, " position velocity gravity  Coriolis\n");
-    for (size_t ii(0); ii < tao_tree->info.size(); ++ii) {
-      fprintf(stdout, "% 7.4f % 7.4f % 7.4f % 7.4f \n",
-	      pos[ii] * 180 / M_PI, vel[ii] * 180 / M_PI, grav[ii] / 9.81, cori[ii]);
-    }
-  }
+  model->update(state);
   
   if (verbosity >= 2) {
-    wbc::dump_tao_tree_info(cout, tao_tree, "", true);
+    jspace::dump_tao_tree_info(cout, model->_getKGMTree(), "", true);
   }
   
-  if (transform_file) {
-    (*transform_file) << "==================================================\n"
-		      << "joint_positions:\t" << pos << "\n"
-		      << "link_origins:\n";
-    dump_global_frames(*transform_file, tao_tree->root->getDChild(), "  ");
-  }
+  // if (transform_file) {
+  //   (*transform_file) << "==================================================\n"
+  // 		      << "joint_positions:\t" << pos << "\n"
+  // 		      << "link_origins:\n";
+  //   dump_global_frames(*transform_file, tao_tree->root->getDChild(), "  ");
+  // }
   
-  ++simul_tick;
+  ++tick;
   return true;
 }
 
@@ -344,18 +320,18 @@ void timer(int handle)
   if (step || continuous) {
     if (step) {
       step = false;
-      if ( ! update_simul()) {
-	errx(EXIT_FAILURE, "timer(): update_simul() failed");
+      if ( ! update()) {
+	errx(EXIT_FAILURE, "timer(): update() failed");
       }
     }
     else {
       do {
-	if ( ! update_simul()) {
-	  errx(EXIT_FAILURE, "timer(): update_simul() failed");
+	if ( ! update()) {
+	  errx(EXIT_FAILURE, "timer(): update() failed");
 	}
-      }  // simul_tick gets incremented in update_simul(), unless it
+      }  // tick gets incremented in update(), unless it
          // returns false, in which case we abort anyway.
-      while (0 != simul_tick % n_simul_per_gfx);
+      while (0 != tick % n_simul_per_gfx);
     }
   }
   
@@ -392,18 +368,15 @@ void motion(int x, int y)
 
 void cleanup(void)
 {
-  if (transform_file) {
-    // flushing and closing is probably redundant...
-    (*transform_file) << flush;
-    transform_file->close();
-    delete transform_file;
-  }
+  // if (transform_file) {
+  //   // flushing and closing is probably redundant...
+  //   (*transform_file) << flush;
+  //   transform_file->close();
+  //   delete transform_file;
+  // }
   if (0 != trackball) {
     free(trackball);
   }
-  delete tao_container;
-  delete robot_api;
-  delete wbc_extensions;
 }
 
 
@@ -417,7 +390,7 @@ static void draw_tree(taoDNode /*const*/ * node)
     deFrame home;
     home.multiply(*parent->frameGlobal(), *node->frameHome());
     
-    if ((prev_tick != simul_tick) && (verbosity >= 2)) {
+    if ((prev_tick != tick) && (verbosity >= 2)) {
       cout << "draw_tree(" << (void*) node << ")\n"
 	   << "  parent global:    " << *parent->frameGlobal() << "\n"
 	   << "  node home local:  " << *node->frameHome() << "\n"
@@ -447,7 +420,7 @@ static void draw_tree(taoDNode /*const*/ * node)
     com.translation() = *node->center();
     com.multiply(*node->frameGlobal(), deFrame(com));
     
-    if ((prev_tick != simul_tick) && (verbosity >= 2)) {
+    if ((prev_tick != tick) && (verbosity >= 2)) {
       cout << "  com local:        " << *node->center() << "\n"
 	   << "  node global:      " << *node->frameGlobal() << "\n"
 	   << "  com global:       " << com.translation() << "\n";
@@ -481,7 +454,7 @@ static void draw_tree(taoDNode /*const*/ * node)
   for (taoDNode * child(node->getDChild()); child != 0; child = child->getDSibling())
     draw_tree(child);
   
-  prev_tick = simul_tick;
+  prev_tick = tick;
 }
 
 
@@ -525,7 +498,7 @@ void draw()
   glVertex3d(0, 0, 1);
   glEnd();
   
-  draw_tree(tao_tree->root);
+  draw_tree(model->_getKGMTree()->root);
   
   view->PopProjection();
   
@@ -550,14 +523,8 @@ void usage(ostream & os)
 {
   os << "   -h               help (this message)\n"
      << "   -v               increase verbosity\n"
-     << "   -p               use ROS parameters to initialize robot model\n"
      << "   -n <iterations>  run without graphics for the number of iterations, then quit\n"
      << "   -s <SAI file>    load SAI file (takes precedence)\n"
-     << "   -u <URDF file>   load URDF file (unless a SAI file was specified, too)\n"
-     << "   -f <filter file> load a link filter for the URDF conversion (only used with -u)\n"
-     << "   -R <robot spec>  retrieve joint angles from a robot at each simulation tick\n"
-     << "   -S <servo spec>  retrieve torque commands from a servo\n"
-     << "   -t <filename>    write joint angles and link transforms to file at each simulation tick\n"
      << "   -T <simul:servo:gfx> specify update rates (in Hz) for the servo, the simulation, and the graphics\n";
 }
 
@@ -580,9 +547,6 @@ void parse_options(int argc, char ** argv)
 	++verbosity;
       if ((strlen(argv[ii]) > 3) && ('v' == argv[ii][3]))
 	++verbosity;
-      break;
-    case 'p':
-      ros_param_mode = true;
       break;
     case 'n':
       ++ii;
@@ -607,50 +571,6 @@ void parse_options(int argc, char ** argv)
 	errx(EXIT_FAILURE, "-s requires an argument (see -h for more info)");
       }
       sai_filename = argv[ii];
-      break;
-    case 'u':
-      ++ii;
-      if (ii >= argc) {
-	usage(cerr);
-	errx(EXIT_FAILURE, "-u requires an argument (see -h for more info)");
-      }
-      urdf_filename = argv[ii];
-      break;
-    case 'f':
-      ++ii;
-      if (ii >= argc) {
-	usage(cerr);
-	errx(EXIT_FAILURE, "-f requires an argument (see -h for more info)");
-      }
-      filter_filename = argv[ii];
-      break;
-    case 'R':
-      ++ii;
-      if (ii >= argc) {
-	usage(cerr);
-	errx(EXIT_FAILURE, "-R requires an argument (see -h for more info)");
-      }
-      robot_spec = argv[ii];
-      break;
-    case 'S':
-      ++ii;
-      if (ii >= argc) {
-	usage(cerr);
-	errx(EXIT_FAILURE, "-S requires an argument (see -h for more info)");
-      }
-      servo_spec = argv[ii];
-      break;
-    case 't':
-      ++ii;
-      if (ii >= argc) {
-	usage(cerr);
-	errx(EXIT_FAILURE, "-t requires an argument (see -h for more info)");
-      }
-      transform_filename = argv[ii];
-      transform_file = new ofstream(argv[ii]);
-      if ( ! (*transform_file)) {
-	errx(EXIT_FAILURE, "problem opening transform file \"%s\"", argv[ii]);
-      }
       break;
     case 'T':
       ++ii;
