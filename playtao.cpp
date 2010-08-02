@@ -24,17 +24,11 @@
    \author Roland Philippsen
 */
 
-#include "parse.hpp"
-#include "robot_api.hpp"
-#include <wbc/ros/urdf_to_tao.hpp>
-#include <wbc/util/dump.hpp>
-#include <wbc/util/tao_util.hpp>
-#include <wbc/core/RobotAPI.hpp>
-#include <wbc/core/RobotFactory.hpp>
-#include <wbc/core/Plugin.hpp>
-#include <wbc/bin/builtin.hpp>
-#include <wbcnet/log.hpp>
-#include <wbcnet/strutil.hpp>
+#include <jspace/Model.hpp>
+#include <jspace/tao_dump.hpp>
+// Should probably rearrange jspace so that we can include <jspace/tests/foo.hpp> here.
+#include <tests/sai_brep.hpp>
+#include <tests/sai_brep_parser.hpp>
 
 #include <tao/dynamics/taoNode.h>
 #include <tao/dynamics/taoJoint.h>
@@ -42,14 +36,14 @@
 #include <tao/dynamics/taoVar.h>
 #include <tao/utility/TaoDeMassProp.h>
 
-#include <saimatrix/SAIVector.h>
-
 #include <gfx/wrap_glut.hpp>
 #include <gfx/Viewport.hpp>
 #include <gfx/Mousehandler.hpp>
 #include <gfx/gltrackball.h>
 
 #include <boost/shared_ptr.hpp>
+
+#include <stdexcept>
 
 #include <fstream>
 #include <err.h>
@@ -65,18 +59,6 @@ using namespace std;
 #undef USE_DEPTH_BUFFER
 
 
-static TAOContainer * tao_container(0);
-static wbc::tao_tree_info_s * tao_tree(0); // this gets deleted for us by the TAOContainer dtor
-static deVector3 gravity(0, 0, -9.81);
-static wbc::Extensions * wbc_extensions(0);
-static std::string robot_spec("");
-static std::string servo_spec("");
-static wbc::RobotAPI * robot_api(0);
-static wbc::BidirectionalRobotAPI * servo_api(0);
-static SAIVector servo_command(0);
-
-static std::string transform_filename("");
-static std::ofstream * transform_file(0);
 static double simul_rate(500.0);
 static double simul_dt(0.002);
 static double servo_rate(250.0);
@@ -85,7 +67,8 @@ static double gfx_rate(50.0);
 static unsigned int gfx_timer_ms(20);
 static size_t n_simul_per_servo(2);
 static size_t n_simul_per_gfx(10);
-static bool ros_param_mode(false);
+
+static boost::shared_ptr<jspace::Model> jspace_model;
 
 static size_t simul_tick(0);
 static trackball_state * trackball;
@@ -98,8 +81,6 @@ static bool step(true);
 static bool continuous(false);
 static int verbosity(0);
 static string sai_filename("");
-static string urdf_filename("");
-static string filter_filename("");
 static int n_iterations(-1);	// -1 means graphics mode, user presses 'q' to quit
 
 static void usage(ostream & os);
@@ -114,8 +95,6 @@ static void mouse(int button, int state, int x, int y);
 static void motion(int x, int y);
 static void cleanup(void);
 static void handle(int signum);
-static void compute_g_and_b(SAIVector const & pos, SAIVector const & vel,
-			    SAIVector & grav, SAIVector & cori);
 
 
 int main(int argc, char ** argv)
@@ -129,82 +108,42 @@ int main(int argc, char ** argv)
   if (signal(SIGTERM, handle) == SIG_ERR) 
     err(EXIT_FAILURE, "signal(SIGTERM)");
   
-  wbcnet::configure_logging();
-  
   parse_options(argc, argv);
-  wbcnet::manual_logging_verbosity(verbosity);
 
   try {
     
-    wbc_extensions = wbc::load_extensions(0);
-    wbc_extensions->AddRobot("foo", create_robot_factory());
-    
-    if ( ! robot_spec.empty()) {
-      robot_api = wbc_extensions->robot_registry->parseCreate(robot_spec, 0);
-    }
-    if ( ! servo_spec.empty()) {
-      servo_api = wbc_extensions->robot_registry->parseCreateBidirectional(servo_spec, 0);
-    }
-    if (robot_api && servo_api) {
-      errx(EXIT_FAILURE, "you specified -R and -S, that makes no sense");
+    if (sai_filename.empty()) {
+      throw runtime_error("no SAI filename specified");
     }
     
-    if ( ! sai_filename.empty()) {
-      if ((( ! urdf_filename.empty()) || ros_param_mode)) {
-	throw runtime_error("please use only one of the -s, -u, or -p options");
-      }
-      cout << "loading SAI file " << sai_filename << "\n";
-      tao_container = parse_sai_xml_file(sai_filename.c_str());
-      tao_tree = tao_container->getTree();
-    }
+    cout << "loading SAI file " << sai_filename << "\n";
+    jspace::test::BRParser brp;
+    jspace::test::BranchingRepresentation * brep(brp.parse(sai_filename));
+    jspace::tao_tree_info_s * kgm_tree(brep->createTreeInfo());
+    cout << "TAO tree:\n";
+    jspace::dump_tao_tree_info(cout, kgm_tree, "  ", false);
+    delete brep;
+    brep = brp.parse(sai_filename); // parse it again to create a second copy for Coriolis / centrifugal
+    jspace::tao_tree_info_s * cc_tree(brep->createTreeInfo());
+    delete brep;
+    jspace_model.reset(new jspace::Model(kgm_tree, cc_tree));
     
-    else if ( ! urdf_filename.empty()) {
-      if (ros_param_mode) {
-	throw runtime_error("please use only one of the -s, -u, or -p options");
-      }
-      shared_ptr<wbcros::FlatFileLinkFilter> link_filter;
-      string root_name("world");
-      if ( ! filter_filename.empty()) {
-	cout << "loading link filter file " << filter_filename << "\n";
-	link_filter.reset(new wbcros::FlatFileLinkFilter());
-	link_filter->Load(filter_filename);
-	root_name = link_filter->GetRootName();
-      }
-      cout << "root name is " << root_name << "\n"
-	   << "loading URDF file " << urdf_filename << "\n";      
-      tao_container = parse_urdf_file(urdf_filename.c_str(), root_name, link_filter.get());
-      tao_tree = tao_container->getTree();
+    if (n_iterations < 0) {
+      trackball = gltrackball_init();
+      init_glut(& argc, argv, winwidth, winheight);
+      glutMainLoop();
     }
-    
-    else if (ros_param_mode) {
-      cout << "ROS parameter mode\n";
-      tao_container = parse_ros_parameter("/pr2_stanford_wbc/", "/robot_description");
-      tao_tree = tao_container->getTree();
-    }
-    
     else {
-      usage(cerr);
-      errx(EXIT_FAILURE, "you have to specify one of the -s, -u, or -p options");
+      for (int ii(0); ii < n_iterations; ++ii) {
+	if ( ! update_simul()) {
+	  break;
+	}
+      }
     }
     
   }
   catch (std::exception const & ee) {
     errx(EXIT_FAILURE, "EXCEPTION: %s", ee.what());
-  }
-  
-  wbc::dump_tao_tree_info(cout, tao_tree, "FINAL  ", false);
-  
-  if (n_iterations < 0) {
-    trackball = gltrackball_init();
-    init_glut(& argc, argv, winwidth, winheight);
-    glutMainLoop();
-  }
-  else {
-    for (int ii(0); ii < n_iterations; ++ii) {
-      if ( ! update_simul()) {
-	break;
-      }
-    }
   }
   
   return 0;
@@ -364,7 +303,7 @@ bool update_simul()
 	errx(EXIT_FAILURE, "update_simul(): servo_api->readTorques() failed");
       }
     }
-    taoDynamics::fwdDynamics(tao_tree->root, &gravity);
+    taoDynamics::fwdDynamics(tao_tree->root, &earth_gravity);
     
     if (servo_command.size() != 0) {
       add_node_command(tao_tree->root, &servo_command[0]);
@@ -758,39 +697,5 @@ void parse_options(int argc, char ** argv)
       usage(cerr);
       errx(EXIT_FAILURE, "problem with option '%s'", argv[ii]);
     }
-  }
-}
-
-
-// only supports one dof per joint and one joint per node
-void compute_g_and_b(SAIVector const & pos, SAIVector const & vel,
-		     SAIVector & grav, SAIVector & cori)
-{
-  wbc::tao_tree_info_s * gtree(tao_container->getGTree());
-  for (size_t ii(0); ii < gtree->info.size(); ++ii) {
-    taoJoint * joint(gtree->info[ii].node->getJointList());
-    joint->setQ(&pos[ii]);
-    joint->zeroDQ();
-    joint->zeroDDQ();
-    joint->zeroTau();
-  }
-  taoDynamics::invDynamics(gtree->root, &gravity);
-  for (size_t ii(0); ii < gtree->info.size(); ++ii) {
-    taoJoint * joint(gtree->info[ii].node->getJointList());
-    joint->getTau(&grav[ii]);
-  }
-  
-  static deVector3 const zero_gravity(0, 0, 0);
-  wbc::tao_tree_info_s * btree(tao_container->getBTree());
-  for (size_t ii(0); ii < btree->info.size(); ++ii) {
-    taoJoint * joint(btree->info[ii].node->getJointList());
-    joint->setQ(&pos[ii]);
-    joint->setDQ(&vel[ii]);
-    joint->zeroDDQ();
-  }
-  taoDynamics::invDynamics(btree->root, &zero_gravity);
-  for (size_t ii(0); ii < btree->info.size(); ++ii) {
-    taoJoint * joint(btree->info[ii].node->getJointList());
-    joint->getTau(&cori[ii]);
   }
 }
