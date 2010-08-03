@@ -134,6 +134,7 @@ int main(int argc, char ** argv)
     if (n_iterations < 0) {
       trackball = gltrackball_init();
       qobj = gluNewQuadric();
+      gluQuadricNormals(qobj, GLU_SMOOTH);
       init_glut(& argc, argv, winwidth, winheight);
       glutMainLoop();
     }
@@ -167,6 +168,23 @@ void init_glut(int * argc, char ** argv,
   int handle(glutCreateWindow("playtao"));
   if (0 == handle)
     errx(EXIT_FAILURE, "glutCreateWindow() failed");
+  
+  {
+    GLfloat mat_spec[] = { 1.0, 1.0, 1.0, 1.0 };
+    GLfloat mat_shin[] = { 50.0 };
+    GLfloat l_white[] = { 1.0, 1.0, 1.0, 1.0 };
+    glClearColor(0.0, 0.0, 0.0, 0.0);
+    glShadeModel(GL_SMOOTH);
+    glMaterialfv(GL_FRONT, GL_SPECULAR, mat_spec);
+    glMaterialfv(GL_FRONT, GL_SHININESS, mat_shin);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, l_white);
+    glLightfv(GL_LIGHT0, GL_SPECULAR, l_white);
+    glEnable(GL_LIGHTING);
+    glEnable(GL_LIGHT0);
+  }
+  
+  glEnable(GL_CULL_FACE);
+  glCullFace(GL_BACK);
   
   glutDisplayFunc(draw);
   glutReshapeFunc(reshape);
@@ -501,6 +519,16 @@ void draw()
   
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
+
+  {
+    GLfloat l_pos[] = { 1.0, 1.0, 1.0, 0.0 };
+    glLightfv(GL_LIGHT0, GL_POSITION, l_pos);
+    glColor3d(1, 1, 0);
+    glPushMatrix();
+    glTranslatef(l_pos[0], l_pos[1], l_pos[2]);
+    glutSolidSphere(0.1, 20, 16);
+    glPopMatrix();
+  }
   
   gltrackball_rotate(trackball);
   glRotatef(-90, 1.0, 0.0, 0.0);
