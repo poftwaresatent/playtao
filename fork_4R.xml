@@ -34,7 +34,7 @@
           <inertia>0, 0, 0</inertia>
           <com>0.5, 0, 0</com>
           <pos>-1, 0, 0</pos>
-          <rot>0, 1, 0, 1.57079632679 </rot>
+          <rot>0, 1, 0, -1.57079632679 </rot> -->
         </jointNode>
         <jointNode>
           <ID>3</ID>
@@ -44,7 +44,7 @@
           <inertia>0, 0, 0</inertia>
           <com>0.5, 0, 0</com>
           <pos>1, 0, 0</pos>
-          <rot>0.707106781187, 0, 0.707106781187, 1.57079632679 </rot>
+          <rot>0.707106781187, 0, 0.707106781187, 3.14159265359 </rot>
 	 </jointNode>
       </jointNode>
     </jointNode>

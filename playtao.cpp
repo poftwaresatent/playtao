@@ -569,9 +569,7 @@ static void draw_tree(taoDNode /*const*/ * node)
     // sphere on COM
     glMatrixMode(GL_MODELVIEW);
     glPushMatrix();
-    glTranslated(com.translation()[0],
-		 com.translation()[1],
-		 com.translation()[2]);
+    glTranslated(p1[0], p1[1], p1[2]);
     glutSolidSphere(0.1, 20, 16);
     glPopMatrix();
   }
