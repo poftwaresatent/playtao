@@ -24,7 +24,7 @@
    \author Roland Philippsen
 */
 
-#include "strutil.hpp"
+#include "udp_robot_api.hpp"
 
 #include <jspace/Model.hpp>
 #include <jspace/RobotAPI.hpp>
@@ -73,6 +73,7 @@ static int verbosity(0);
 static string sai_filename("");
 static int n_iterations(-1);	// -1 means graphics mode, user presses 'q' to quit
 static unsigned int gfx_timer_ms(20);
+static std::string udp_port("1382");
 
 static void usage(ostream & os);
 static void parse_options(int argc, char ** argv);
@@ -103,6 +104,10 @@ int main(int argc, char ** argv)
   parse_options(argc, argv);
 
   try {
+    playtao::UDPRobotAPI * robot(new playtao::UDPRobotAPI());
+    robot->init(udp_port);
+    robot_api.reset(robot);
+    
     model.reset(load_model());
     
     if (n_iterations < 0) {
@@ -300,9 +305,13 @@ bool update()
       cerr << "update(): robot_api->readState() failed: " << status.errstr << "\n";
       return false;
     }
-    if (state.position_.size() != ndof) {
-      cerr << "update(): WARNING state has " << state.position_.size()
-	   << " DOF but should have " << ndof << "\n";
+    if ((state.position_.size() != ndof) || (state.velocity_.size() != ndof)) {
+      if (verbosity >= 1) {
+	cerr << "update(): WARNING state has " << state.position_.size()
+	     << " positions and " << state.velocity_.size()
+	     << " velocities but should have " << ndof << " of each\n";
+      }
+      state.resizeAndPadWithZeros(ndof, ndof, 0);
     }
   }
   
