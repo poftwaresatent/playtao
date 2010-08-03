@@ -38,8 +38,10 @@ namespace gfx {
     void UpdateBounds(double xx, double yy, double zz);
     void PushOrtho();
     void Pop();
+    double GetRadius();
     
   protected:
+    void MaybeUpdate();
     void UpdateSphere();
     void UpdateOrtho();
     void UpdatePadding();

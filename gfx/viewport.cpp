@@ -86,13 +86,7 @@ namespace gfx {
   void Viewport::
   PushOrtho()
   {
-    if (dirty_) {
-      UpdateSphere();
-      UpdateOrtho();
-      UpdatePadding();
-      UpdateEye(sphere_.radius);
-      dirty_ = false;
-    }
+    MaybeUpdate();
     
     glViewport(padding_.x0, padding_.y0, padding_.width, padding_.height);
     gluLookAt(eye_.x, eye_.y, eye_.z,
@@ -161,14 +155,14 @@ namespace gfx {
       if (pad > 0) {		// pad left and right
 	padding_.x0 = pad;
 	padding_.y0 = 0;
-	padding_.width = shape_.width - pad;
+	padding_.width = shape_.height;
 	padding_.height = shape_.height;
       }
       else if (pad < 0) {	// pad below and above
 	padding_.x0 = 0;
 	padding_.y0 = -pad;	// pad<0 so to add it we need -
 	padding_.width = shape_.width;
-	padding_.height = shape_.height + pad;
+	padding_.height = shape_.width;
       }
       else {			// no padding
 	padding_.x0 = 0;
@@ -186,6 +180,27 @@ namespace gfx {
     eye_.x = sphere_.cx;
     eye_.y = sphere_.cy;
     eye_.z = sphere_.cz - sphere_.radius - distance;
+  }
+  
+  
+  double Viewport::
+  GetRadius()
+  {
+    MaybeUpdate();
+    return sphere_.radius;
+  }
+  
+  
+  void Viewport::
+  MaybeUpdate()
+  {
+    if (dirty_) {
+      UpdateSphere();
+      UpdateOrtho();
+      UpdatePadding();
+      UpdateEye(sphere_.radius);
+      dirty_ = false;
+    }
   }
   
 }

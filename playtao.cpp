@@ -57,8 +57,6 @@ using namespace gfx;
 using namespace boost;
 using namespace std;
 
-#undef USE_DEPTH_BUFFER
-
 
 static double simul_rate(500.0);
 static double simul_dt(0.002);
@@ -72,6 +70,7 @@ static size_t n_simul_per_gfx(10);
 static boost::shared_ptr<jspace::Model> model;
 static boost::shared_ptr<jspace::RobotAPI> robot_api;
 static size_t ndof;
+static GLUquadricObj * qobj(0);
 
 static size_t tick(0);
 static trackball_state * trackball;
@@ -134,6 +133,7 @@ int main(int argc, char ** argv)
     
     if (n_iterations < 0) {
       trackball = gltrackball_init();
+      qobj = gluNewQuadric();
       init_glut(& argc, argv, winwidth, winheight);
       glutMainLoop();
     }
@@ -158,12 +158,9 @@ void init_glut(int * argc, char ** argv,
 	       int width, int height)
 {
   glutInit(argc, argv);
-#ifdef USE_DEPTH_BUFFER
   glutInitDisplayMode(GLUT_DEPTH | GLUT_RGBA | GLUT_DOUBLE);
   glEnable(GL_DEPTH_TEST);
-#else
-  glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
-#endif
+  
   glutInitWindowPosition(0, 0);
   glutInitWindowSize(width, height);
   
@@ -371,6 +368,9 @@ void cleanup(void)
   if (0 != trackball) {
     free(trackball);
   }
+  if (0 != qobj) {
+    gluDeleteQuadric(qobj);
+  }
 }
 
 
@@ -380,7 +380,7 @@ static void draw_tree(taoDNode /*const*/ * node)
   
   taoDNode /*const*/ * parent(node->getDParent());
   if (parent) {
-    // draw thick line from parent's global frame to node's home frame
+    // draw cylinder from parent's global frame to node's home frame
     deFrame home;
     home.multiply(*parent->frameGlobal(), *node->frameHome());
     
@@ -398,6 +398,43 @@ static void draw_tree(taoDNode /*const*/ * node)
 			  home.translation()[1],
 			  home.translation()[2]);
     
+    Eigen::Vector3d p0(parent->frameGlobal()->translation()[0],
+		       parent->frameGlobal()->translation()[1],
+		       parent->frameGlobal()->translation()[2]);
+    Eigen::Vector3d p1(home.translation()[0],
+		       home.translation()[1],
+		       home.translation()[2]);
+    static Eigen::Vector3d const ez(0, 0, 1);
+    Eigen::Vector3d ezd(p1 - p0);
+    double const ezdnorm(ezd.norm());
+    if (ezdnorm > 1e-6) {	// hmm... and else?
+      ezd /= ezdnorm;
+      Eigen::Vector3d exd(ezd.cross(ez));
+      double const exdnorm(exd.norm());
+      if (exdnorm < 1e-6) {
+	exd << 1, 0, 0;
+      }
+      else {
+	exd /= exdnorm;
+      }
+      Eigen::Vector3d eyd(ezd.cross(exd));
+      Eigen::Matrix4d transform(Eigen::Matrix4d::Zero());
+      transform.block(0, 0, 3, 1) = exd;
+      transform.block(0, 1, 3, 1) = eyd;
+      transform.block(0, 2, 3, 1) = ezd;
+      transform.block(0, 3, 3, 1) = p0;
+      transform.coeffRef(3, 3) = 1;
+      // we are already in glMatrixMode(GL_MODELVIEW)
+      glPushMatrix();
+      glMultMatrixd(transform.data());
+      glColor3d(0.5, 0.5, 0.5);
+      // gluQuadricDrawStyle(qobj, GLU_LINE);
+      // glLineWidth(1);
+      gluCylinder(qobj, 0.2, 0.2, ezdnorm, 8, 1);
+      glPopMatrix();
+    }
+    
+    // draw thick line from parent's global frame to node's home frame
     glLineWidth(3);
     glColor3d(0.5, 0.5, 0.5);
     glBegin(GL_LINES);
@@ -458,17 +495,13 @@ static void draw_tree(taoDNode /*const*/ * node)
 
 void draw()
 {
-  glClearColor(0, 0, 0, 0);
-#ifdef USE_DEPTH_BUFFER
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-#else
-  glClear(GL_COLOR_BUFFER_BIT);
-#endif
   
   viewport.PushOrtho();
   
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
+  
   gltrackball_rotate(trackball);
   glRotatef(-90, 1.0, 0.0, 0.0);
   glRotatef(-90, 0.0, 0.0, 1.0);
