@@ -1,8 +1,11 @@
 // hand-copied from Woo et.al. "OpenGL Programming Guide" 3rd edition Addison Wesley 1999
-// gcc -Wall -o light light.c -lglut
+// gcc -Wall -o light light.c -lglut -LGLU
 
 #include <GL/glut.h>
 #include <stdlib.h>
+
+static GLUquadricObj * qobj;
+
 
 void init()
 {
@@ -25,6 +28,8 @@ void init()
 void display()
 {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glRotatef(45.0, 0.7, 0.7, 0.0);
+  gluCylinder(qobj, 0.2, 0.2, 1.5, 8, 1);
   glutSolidSphere(1.0, 20, 16);
   glFlush();
 }
@@ -46,6 +51,8 @@ void reshape(int w, int h)
 
 int main(int argc, char ** argv)
 {
+  qobj = gluNewQuadric();
+  gluQuadricNormals(qobj, GLU_SMOOTH);
   glutInit(&argc, argv);
   glutInitDisplayMode(GLUT_SINGLE | GLUT_RGB | GLUT_DEPTH);
   glutInitWindowSize(500, 500);
