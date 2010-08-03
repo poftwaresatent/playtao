@@ -175,13 +175,9 @@ void init_glut(int * argc, char ** argv,
     errx(EXIT_FAILURE, "glutCreateWindow() failed");
   
   {
-    GLfloat mat_spec[] = { 1.0, 1.0, 1.0, 1.0 };
-    GLfloat mat_shin[] = { 50.0 };
     GLfloat l_white[] = { 1.0, 1.0, 1.0, 1.0 };
     glClearColor(0.0, 0.0, 0.0, 0.0);
     glShadeModel(GL_SMOOTH);
-    glMaterialfv(GL_FRONT, GL_SPECULAR, mat_spec);
-    glMaterialfv(GL_FRONT, GL_SHININESS, mat_shin);
     glLightfv(GL_LIGHT0, GL_DIFFUSE, l_white);
     glLightfv(GL_LIGHT0, GL_SPECULAR, l_white);
     glEnable(GL_LIGHTING);
@@ -408,9 +404,99 @@ void cleanup(void)
 }
 
 
+static bool draw_pipe(Eigen::Vector3d const & p0, Eigen::Vector3d const & p1,
+		      double r0, double r1)
+{
+  static Eigen::Vector3d const ez(0, 0, 1);
+  Eigen::Vector3d ezd(p1 - p0);
+  double const ezdnorm(ezd.norm());
+  if (ezdnorm < 1e-6) {
+    return false;
+  }
+  
+  ezd /= ezdnorm;
+  Eigen::Vector3d exd(ezd.cross(ez));
+  double const exdnorm(exd.norm());
+  if (exdnorm < 1e-6) {
+    exd << 1, 0, 0;
+  }
+  else {
+    exd /= exdnorm;
+  }
+  Eigen::Vector3d eyd(ezd.cross(exd));
+  Eigen::Matrix4d transform(Eigen::Matrix4d::Zero());
+  transform.block(0, 0, 3, 1) = exd;
+  transform.block(0, 1, 3, 1) = eyd;
+  transform.block(0, 2, 3, 1) = ezd;
+  transform.block(0, 3, 3, 1) = p0;
+  transform.coeffRef(3, 3) = 1;
+  glMatrixMode(GL_MODELVIEW);
+  glPushMatrix();
+  glMultMatrixd(transform.data());
+  gluCylinder(qobj, r0, r1, ezdnorm, 24, 24);
+  glPopMatrix();
+  
+  return true;
+}
+
+
 static void draw_tree(taoDNode /*const*/ * node)
 {
   static size_t prev_tick(812379);
+  static GLfloat pipe_ambi[] = { 0.1, 0.1, 0.2, 1.0 };
+  static GLfloat pipe_diff[] = { 0.8, 0.8, 0.6, 1.0 };
+  static GLfloat pipe_spec[] = { 1.0, 1.0, 0.8, 1.0 };
+  static GLfloat pipe_shin[] = { 50.0 };
+  static GLfloat com_ambi[] = { 0.1, 0.2, 0.1, 1.0 };
+  static GLfloat com_diff[] = { 0.8, 0.6, 0.8, 1.0 };
+  static GLfloat com_spec[] = { 1.0, 0.8, 1.0, 1.0 };
+  static GLfloat com_shin[] = { 50.0 };
+  static GLfloat red_ambi[] = { 0.3, 0.0, 0.1, 1.0 };
+  static GLfloat red_diff[] = { 0.8, 0.0, 0.0, 1.0 };
+  static GLfloat red_spec[] = { 1.0, 0.6, 0.6, 1.0 };
+  static GLfloat red_shin[] = { 50.0 };
+  static GLfloat green_ambi[] = { 0.0, 0.3, 0.1, 1.0 };
+  static GLfloat green_diff[] = { 0.0, 0.8, 0.0, 1.0 };
+  static GLfloat green_spec[] = { 0.6, 1.0, 0.6, 1.0 };
+  static GLfloat green_shin[] = { 50.0 };
+  static GLfloat blue_ambi[] = { 0.0, 0.0, 0.3, 1.0 };
+  static GLfloat blue_diff[] = { 0.0, 0.0, 0.8, 1.0 };
+  static GLfloat blue_spec[] = { 0.6, 0.6, 1.0, 1.0 };
+  static GLfloat blue_shin[] = { 50.0 };
+  
+  Eigen::Vector3d const p0(node->frameGlobal()->translation()[0],
+			   node->frameGlobal()->translation()[1],
+			   node->frameGlobal()->translation()[2]);
+  viewport.UpdateBounds(p0[0], p0[1], p0[2]);
+  {
+    deVector3 axis;
+    deFloat angle;
+    node->frameGlobal()->rotation().get(axis, angle);
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glTranslated(p0[0], p0[1], p0[2]);
+    glRotated(angle, axis[0], axis[1], axis[2]);
+    glMaterialfv(GL_FRONT, GL_AMBIENT,   red_ambi);
+    glMaterialfv(GL_FRONT, GL_DIFFUSE,   red_diff);
+    glMaterialfv(GL_FRONT, GL_SPECULAR,  red_spec);
+    glMaterialfv(GL_FRONT, GL_SHININESS, red_shin);
+    static Eigen::Vector3d const zero(Eigen::Vector3d::Zero());
+    static Eigen::Vector3d const ex(0.4, 0, 0);
+    static Eigen::Vector3d const ey(0, 0.4, 0);
+    static Eigen::Vector3d const ez(0, 0, 0.4);
+    draw_pipe(zero, ex, 0.1, 0);
+    glMaterialfv(GL_FRONT, GL_AMBIENT,   green_ambi);
+    glMaterialfv(GL_FRONT, GL_DIFFUSE,   green_diff);
+    glMaterialfv(GL_FRONT, GL_SPECULAR,  green_spec);
+    glMaterialfv(GL_FRONT, GL_SHININESS, green_shin);
+    draw_pipe(zero, ey, 0.1, 0);
+    glMaterialfv(GL_FRONT, GL_AMBIENT,   blue_ambi);
+    glMaterialfv(GL_FRONT, GL_DIFFUSE,   blue_diff);
+    glMaterialfv(GL_FRONT, GL_SPECULAR,  blue_spec);
+    glMaterialfv(GL_FRONT, GL_SHININESS, blue_shin);
+    draw_pipe(zero, ez, 0.1, 0);
+    glPopMatrix();
+  }
   
   taoDNode /*const*/ * parent(node->getDParent());
   if (parent) {
@@ -425,64 +511,20 @@ static void draw_tree(taoDNode /*const*/ * node)
 	   << "  node home global: " << home << "\n";
     }
     
-    viewport.UpdateBounds(parent->frameGlobal()->translation()[0],
-			  parent->frameGlobal()->translation()[1],
-			  parent->frameGlobal()->translation()[2]);
-    viewport.UpdateBounds(home.translation()[0],
-			  home.translation()[1],
-			  home.translation()[2]);
-    
-    Eigen::Vector3d p0(parent->frameGlobal()->translation()[0],
-		       parent->frameGlobal()->translation()[1],
-		       parent->frameGlobal()->translation()[2]);
-    Eigen::Vector3d p1(home.translation()[0],
-		       home.translation()[1],
-		       home.translation()[2]);
-    static Eigen::Vector3d const ez(0, 0, 1);
-    Eigen::Vector3d ezd(p1 - p0);
-    double const ezdnorm(ezd.norm());
-    if (ezdnorm > 1e-6) {	// hmm... and else?
-      ezd /= ezdnorm;
-      Eigen::Vector3d exd(ezd.cross(ez));
-      double const exdnorm(exd.norm());
-      if (exdnorm < 1e-6) {
-	exd << 1, 0, 0;
-      }
-      else {
-	exd /= exdnorm;
-      }
-      Eigen::Vector3d eyd(ezd.cross(exd));
-      Eigen::Matrix4d transform(Eigen::Matrix4d::Zero());
-      transform.block(0, 0, 3, 1) = exd;
-      transform.block(0, 1, 3, 1) = eyd;
-      transform.block(0, 2, 3, 1) = ezd;
-      transform.block(0, 3, 3, 1) = p0;
-      transform.coeffRef(3, 3) = 1;
-      // we are already in glMatrixMode(GL_MODELVIEW)
-      glPushMatrix();
-      glMultMatrixd(transform.data());
-      glColor3d(0.5, 0.5, 0.5);
-      // gluQuadricDrawStyle(qobj, GLU_LINE);
-      // glLineWidth(1);
-      gluCylinder(qobj, 0.2, 0.2, ezdnorm, 8, 1);
-      glPopMatrix();
-    }
-    
-    // draw thick line from parent's global frame to node's home frame
-    glLineWidth(3);
-    glColor3d(0.5, 0.5, 0.5);
-    glBegin(GL_LINES);
-    glVertex3d(parent->frameGlobal()->translation()[0],
-	       parent->frameGlobal()->translation()[1],
-	       parent->frameGlobal()->translation()[2]);
-    glVertex3d(home.translation()[0],
-	       home.translation()[1],
-	       home.translation()[2]);
-    glEnd();
+    glMaterialfv(GL_FRONT, GL_AMBIENT,   pipe_ambi);
+    glMaterialfv(GL_FRONT, GL_DIFFUSE,   pipe_diff);
+    glMaterialfv(GL_FRONT, GL_SPECULAR,  pipe_spec);
+    glMaterialfv(GL_FRONT, GL_SHININESS, pipe_shin);
+    draw_pipe(Eigen::Vector3d(parent->frameGlobal()->translation()[0],
+			      parent->frameGlobal()->translation()[1],
+			      parent->frameGlobal()->translation()[2]),
+	      Eigen::Vector3d(home.translation()[0],
+			      home.translation()[1],
+			      home.translation()[2]),
+	      0.1, 0.1);
   }
   
   if (node->center()) {
-    // draw thin line from node's global frame to COM, and thick dot on COM
     deFrame com;
     com.translation() = *node->center();
     com.multiply(*node->frameGlobal(), deFrame(com));
@@ -493,31 +535,32 @@ static void draw_tree(taoDNode /*const*/ * node)
 	   << "  com global:       " << com.translation() << "\n";
     }
     
-    viewport.UpdateBounds(node->frameGlobal()->translation()[0],
-			  node->frameGlobal()->translation()[1],
-			  node->frameGlobal()->translation()[2]);
-    viewport.UpdateBounds(com.translation()[0],
-			  com.translation()[1],
-			  com.translation()[2]);
+    Eigen::Vector3d const p1(com.translation()[0],
+			     com.translation()[1],
+			     com.translation()[2]);
+    viewport.UpdateBounds(p1[0], p1[1], p1[2]);
     
-    glLineWidth(1);
-    glColor3d(0.5, 1, 0.5);
-    glBegin(GL_LINES);
-    glVertex3d(node->frameGlobal()->translation()[0],
-	       node->frameGlobal()->translation()[1],
-	       node->frameGlobal()->translation()[2]);
-    glVertex3d(com.translation()[0],
-	       com.translation()[1],
-	       com.translation()[2]);
-    glEnd();
+    // cone from node's global frame to COM
+    glMaterialfv(GL_FRONT, GL_AMBIENT,   com_ambi);
+    glMaterialfv(GL_FRONT, GL_DIFFUSE,   com_diff);
+    glMaterialfv(GL_FRONT, GL_SPECULAR,  com_spec);
+    glMaterialfv(GL_FRONT, GL_SHININESS, com_shin);
+    draw_pipe(Eigen::Vector3d(node->frameGlobal()->translation()[0],
+			      node->frameGlobal()->translation()[1],
+			      node->frameGlobal()->translation()[2]),
+	      Eigen::Vector3d(com.translation()[0],
+			      com.translation()[1],
+			      com.translation()[2]),
+	      0.1, 0);
     
-    glPointSize(5);
-    glBegin(GL_POINTS);
-    glColor3d(0, 1, 0.5);
-    glVertex3d(com.translation()[0],
-	       com.translation()[1],
-	       com.translation()[2]);
-    glEnd();
+    // sphere on COM
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glTranslated(com.translation()[0],
+		 com.translation()[1],
+		 com.translation()[2]);
+    glutSolidSphere(0.1, 20, 16);
+    glPopMatrix();
   }
   
   for (taoDNode * child(node->getDChild()); child != 0; child = child->getDSibling())
@@ -531,20 +574,13 @@ void draw()
 {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   
-  viewport.PushOrtho();
+  viewport.PushOrtho(0.25);
   
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
 
-  {
-    GLfloat l_pos[] = { 1.0, 1.0, 1.0, 0.0 };
-    glLightfv(GL_LIGHT0, GL_POSITION, l_pos);
-    glColor3d(1, 1, 0);
-    glPushMatrix();
-    glTranslatef(l_pos[0], l_pos[1], l_pos[2]);
-    glutSolidSphere(0.1, 20, 16);
-    glPopMatrix();
-  }
+  static GLfloat l_pos[] = { 1.0, 1.0, 1.0, 0.0 };
+  glLightfv(GL_LIGHT0, GL_POSITION, l_pos);
   
   gltrackball_rotate(trackball);
   glRotatef(-90, 1.0, 0.0, 0.0);

@@ -100,7 +100,7 @@ namespace gfx {
   
   
   void Viewport::
-  PushOrtho()
+  PushOrtho(double buffer_distance)
   {
     MaybeUpdate();
     
@@ -112,8 +112,9 @@ namespace gfx {
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
     glLoadIdentity();
-    glOrtho(frustum_.left, frustum_.right, frustum_.bottom,
-	    frustum_.top, frustum_.near, frustum_.far);
+    glOrtho(frustum_.left - buffer_distance, frustum_.right + buffer_distance,
+	    frustum_.bottom - buffer_distance, frustum_.top + buffer_distance,
+	    frustum_.near - buffer_distance, frustum_.far + buffer_distance);
   }
   
   

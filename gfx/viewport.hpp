@@ -38,7 +38,7 @@ namespace gfx {
     void ResetShape();
     void UpdateBounds(double xx, double yy, double zz);
     void ResetBounds();
-    void PushOrtho();
+    void PushOrtho(double buffer_distance);
     void Pop();
     double GetRadius();
     
