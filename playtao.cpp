@@ -470,34 +470,44 @@ static void draw_tree(taoDNode /*const*/ * node)
 			   node->frameGlobal()->translation()[1],
 			   node->frameGlobal()->translation()[2]);
   viewport.UpdateBounds(p0[0], p0[1], p0[2]);
-  {
-    deVector3 axis;
-    deFloat angle;
-    node->frameGlobal()->rotation().get(axis, angle);
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glTranslated(p0[0], p0[1], p0[2]);
-    glRotated(angle, axis[0], axis[1], axis[2]);
+  if (true) {
+    deFrame foo;
+    foo.translation()[0] = 0.4;
+    foo.translation()[1] = 0;
+    foo.translation()[2] = 0;
+    deFrame px;
+    px.multiply(*node->frameGlobal(), foo);
+    foo.translation()[0] = 0;
+    foo.translation()[1] = 0.4;
+    foo.translation()[2] = 0;
+    deFrame py;
+    py.multiply(*node->frameGlobal(), foo);
+    foo.translation()[0] = 0;
+    foo.translation()[1] = 0;
+    foo.translation()[2] = 0.4;
+    deFrame pz;
+    pz.multiply(*node->frameGlobal(), foo);
     glMaterialfv(GL_FRONT, GL_AMBIENT,   red_ambi);
     glMaterialfv(GL_FRONT, GL_DIFFUSE,   red_diff);
     glMaterialfv(GL_FRONT, GL_SPECULAR,  red_spec);
     glMaterialfv(GL_FRONT, GL_SHININESS, red_shin);
-    static Eigen::Vector3d const zero(Eigen::Vector3d::Zero());
-    static Eigen::Vector3d const ex(0.4, 0, 0);
-    static Eigen::Vector3d const ey(0, 0.4, 0);
-    static Eigen::Vector3d const ez(0, 0, 0.4);
-    draw_pipe(zero, ex, 0.1, 0);
+    draw_pipe(p0, Eigen::Vector3d(px.translation()[0],
+				  px.translation()[1],
+				  px.translation()[2]), 0.1, 0);
     glMaterialfv(GL_FRONT, GL_AMBIENT,   green_ambi);
     glMaterialfv(GL_FRONT, GL_DIFFUSE,   green_diff);
     glMaterialfv(GL_FRONT, GL_SPECULAR,  green_spec);
     glMaterialfv(GL_FRONT, GL_SHININESS, green_shin);
-    draw_pipe(zero, ey, 0.1, 0);
+    draw_pipe(p0, Eigen::Vector3d(py.translation()[0],
+				  py.translation()[1],
+				  py.translation()[2]), 0.1, 0);
     glMaterialfv(GL_FRONT, GL_AMBIENT,   blue_ambi);
     glMaterialfv(GL_FRONT, GL_DIFFUSE,   blue_diff);
     glMaterialfv(GL_FRONT, GL_SPECULAR,  blue_spec);
     glMaterialfv(GL_FRONT, GL_SHININESS, blue_shin);
-    draw_pipe(zero, ez, 0.1, 0);
-    glPopMatrix();
+    draw_pipe(p0, Eigen::Vector3d(pz.translation()[0],
+				  pz.translation()[1],
+				  pz.translation()[2]), 0.1, 0);
   }
   
   taoDNode /*const*/ * parent(node->getDParent());
@@ -520,9 +530,10 @@ static void draw_tree(taoDNode /*const*/ * node)
     draw_pipe(Eigen::Vector3d(parent->frameGlobal()->translation()[0],
 			      parent->frameGlobal()->translation()[1],
 			      parent->frameGlobal()->translation()[2]),
-	      Eigen::Vector3d(home.translation()[0],
-			      home.translation()[1],
-			      home.translation()[2]),
+	      p0,
+	      // Eigen::Vector3d(home.translation()[0],
+	      // 		      home.translation()[1],
+	      // 		      home.translation()[2]),
 	      0.05, 0.05);
   }
   
@@ -579,7 +590,7 @@ void draw()
 				// needs to be done at each iteration,
 				// not just once during init.
   
-  viewport.PushOrtho(0.25);
+  viewport.PushOrtho(0.5);
   
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
