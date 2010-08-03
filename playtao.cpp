@@ -165,7 +165,9 @@ void init_glut(int * argc, char ** argv,
 {
   glutInit(argc, argv);
   glutInitDisplayMode(GLUT_DEPTH | GLUT_RGBA | GLUT_DOUBLE);
-  glEnable(GL_DEPTH_TEST);
+  // // Arghl!!! Contrary to doc, this needs to be done at each
+  // // iteration, not just once during init.
+  // glEnable(GL_DEPTH_TEST);
   
   glutInitWindowPosition(0, 0);
   glutInitWindowSize(width, height);
@@ -521,7 +523,7 @@ static void draw_tree(taoDNode /*const*/ * node)
 	      Eigen::Vector3d(home.translation()[0],
 			      home.translation()[1],
 			      home.translation()[2]),
-	      0.1, 0.1);
+	      0.05, 0.05);
   }
   
   if (node->center()) {
@@ -573,6 +575,9 @@ static void draw_tree(taoDNode /*const*/ * node)
 void draw()
 {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glEnable(GL_DEPTH_TEST);	// Arghl!!! Contrary to doc, this
+				// needs to be done at each iteration,
+				// not just once during init.
   
   viewport.PushOrtho(0.25);
   
