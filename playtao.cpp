@@ -57,7 +57,7 @@ using namespace gfx;
 using namespace boost;
 using namespace std;
 
-
+// most of these are currently unused...
 static double simul_rate(500.0);
 static double simul_dt(0.002);
 static double servo_rate(250.0);
@@ -69,7 +69,6 @@ static size_t n_simul_per_gfx(10);
 
 static boost::shared_ptr<jspace::Model> model;
 static boost::shared_ptr<jspace::RobotAPI> robot_api;
-static size_t ndof;
 static GLUquadricObj * qobj(0);
 
 static size_t tick(0);
@@ -97,6 +96,7 @@ static void mouse(int button, int state, int x, int y);
 static void motion(int x, int y);
 static void cleanup(void);
 static void handle(int signum);
+static jspace::Model * load_model() throw(std::runtime_error);
 
 
 int main(int argc, char ** argv)
@@ -113,23 +113,7 @@ int main(int argc, char ** argv)
   parse_options(argc, argv);
 
   try {
-    
-    if (sai_filename.empty()) {
-      throw runtime_error("no SAI filename specified");
-    }
-    
-    cout << "loading SAI file " << sai_filename << "\n";
-    jspace::test::BRParser brp;
-    jspace::test::BranchingRepresentation * brep(brp.parse(sai_filename));
-    jspace::tao_tree_info_s * kgm_tree(brep->createTreeInfo());
-    cout << "TAO tree:\n";
-    jspace::dump_tao_tree_info(cout, kgm_tree, "  ", false);
-    delete brep;
-    brep = brp.parse(sai_filename); // parse it again to create a second copy for Coriolis / centrifugal
-    jspace::tao_tree_info_s * cc_tree(brep->createTreeInfo());
-    delete brep;
-    model.reset(new jspace::Model(kgm_tree, cc_tree));
-    ndof = model->getNDOF();
+    model.reset(load_model());
     
     if (n_iterations < 0) {
       trackball = gltrackball_init();
@@ -152,6 +136,27 @@ int main(int argc, char ** argv)
   }
   
   return 0;
+}
+
+
+jspace::Model * load_model() throw(std::runtime_error)
+{
+  if (sai_filename.empty()) {
+    throw runtime_error("no SAI filename specified");
+  }
+  
+  cout << "loading SAI file " << sai_filename << "\n";
+  jspace::test::BRParser brp;
+  jspace::test::BranchingRepresentation * brep(brp.parse(sai_filename));
+  jspace::tao_tree_info_s * kgm_tree(brep->createTreeInfo());
+  cout << "TAO tree:\n";
+  jspace::dump_tao_tree_info(cout, kgm_tree, "  ", false);
+  delete brep;
+  brep = brp.parse(sai_filename); // parse it again to create a second copy for Coriolis / centrifugal
+  jspace::tao_tree_info_s * cc_tree(brep->createTreeInfo());
+  delete brep;
+  
+  return new jspace::Model(kgm_tree, cc_tree);
 }
 
 
@@ -213,6 +218,16 @@ void keyboard(unsigned char key, int x, int y)
   case 'c':
     step = false;
     continuous = true;
+    break;
+  case 'r':
+    try {
+      jspace::Model * nm(load_model());
+      model.reset(nm);
+      viewport.ResetBounds();
+    }
+    catch (std::exception const & ee) {
+      cout << "oops while trying to reload file: " << ee.what() << "\n";
+    }
     break;
   case 'q':
     exit(EXIT_SUCCESS);
@@ -294,6 +309,7 @@ void add_node_command(taoDNode * node, double const * tau)
 bool update()
 {
   jspace::State state;
+  size_t const ndof(model->getNDOF());
   
   if ( ! robot_api) {
     state.init(ndof, ndof, 0);

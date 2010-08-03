@@ -38,9 +38,8 @@ namespace gfx {
   Viewport()
     : dirty_(false)
   {
-    bounds_.x0 = numeric_limits<double>::max();
-    bounds_.x1 = numeric_limits<double>::min();
-    shape_.width = -1;
+    ResetShape();
+    ResetBounds();
   }
   
   
@@ -50,6 +49,14 @@ namespace gfx {
     shape_.width = width;
     shape_.height = height;
     dirty_ = true;
+  }
+  
+  
+  void Viewport::
+  ResetShape()
+  {
+    shape_.width = -1;
+    dirty_ = false;
   }
   
   
@@ -80,6 +87,15 @@ namespace gfx {
       bounds_.z1 = zz;
       dirty_ = true;
     }
+  }
+  
+  
+  void Viewport::
+  ResetBounds()
+  {
+    bounds_.x0 = numeric_limits<double>::max();
+    bounds_.x1 = numeric_limits<double>::min();
+    dirty_ = false;
   }
   
   

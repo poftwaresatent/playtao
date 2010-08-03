@@ -12,7 +12,8 @@
 cmake_minimum_required (VERSION 2.6)
 
 project (playtao)
-set (CMAKE_VERBOSE_MAKEFILE ON)
+#set (CMAKE_VERBOSE_MAKEFILE ON)
+#set (CMAKE_BUILD_TYPE Debug)
 
 if (WIN32)
   add_definitions (-DWIN32)

@@ -35,7 +35,9 @@ namespace gfx {
     Viewport();
     
     void UpdateShape(int width, int height);
+    void ResetShape();
     void UpdateBounds(double xx, double yy, double zz);
+    void ResetBounds();
     void PushOrtho();
     void Pop();
     double GetRadius();
