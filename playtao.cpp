@@ -57,15 +57,6 @@ using namespace gfx;
 using namespace boost;
 using namespace std;
 
-// most of these are currently unused...
-static double simul_rate(500.0);
-static double simul_dt(0.002);
-static double servo_rate(250.0);
-static double servo_dt(0.004);
-static double gfx_rate(50.0);
-static unsigned int gfx_timer_ms(20);
-static size_t n_simul_per_servo(2);
-static size_t n_simul_per_gfx(10);
 
 static boost::shared_ptr<jspace::Model> model;
 static boost::shared_ptr<jspace::RobotAPI> robot_api;
@@ -78,11 +69,10 @@ static int winwidth(400);
 static int winheight(400);
 static gfx::Viewport viewport;
 
-static bool step(true);
-static bool continuous(false);
 static int verbosity(0);
 static string sai_filename("");
 static int n_iterations(-1);	// -1 means graphics mode, user presses 'q' to quit
+static unsigned int gfx_timer_ms(20);
 
 static void usage(ostream & os);
 static void parse_options(int argc, char ** argv);
@@ -209,14 +199,6 @@ void reshape(int width, int height)
 void keyboard(unsigned char key, int x, int y)
 {
   switch(key){
-  case ' ':
-    step = true;
-    continuous = false;
-    break;
-  case 'c':
-    step = false;
-    continuous = true;
-    break;
   case 'r':
     try {
       jspace::Model * nm(load_model());
@@ -330,13 +312,6 @@ bool update()
     jspace::dump_tao_tree_info(cout, model->_getKGMTree(), "", true);
   }
   
-  // if (transform_file) {
-  //   (*transform_file) << "==================================================\n"
-  // 		      << "joint_positions:\t" << pos << "\n"
-  // 		      << "link_origins:\n";
-  //   dump_global_frames(*transform_file, tao_tree->root->getDChild(), "  ");
-  // }
-  
   ++tick;
   return true;
 }
@@ -344,22 +319,8 @@ bool update()
 
 void timer(int handle)
 {
-  if (step || continuous) {
-    if (step) {
-      step = false;
-      if ( ! update()) {
-	errx(EXIT_FAILURE, "timer(): update() failed");
-      }
-    }
-    else {
-      do {
-	if ( ! update()) {
-	  errx(EXIT_FAILURE, "timer(): update() failed");
-	}
-      }  // tick gets incremented in update(), unless it
-         // returns false, in which case we abort anyway.
-      while (0 != tick % n_simul_per_gfx);
-    }
+  if ( ! update()) {
+    errx(EXIT_FAILURE, "timer(): update() failed");
   }
   
   glutSetWindow(handle);
@@ -639,8 +600,7 @@ void usage(ostream & os)
   os << "   -h               help (this message)\n"
      << "   -v               increase verbosity\n"
      << "   -n <iterations>  run without graphics for the number of iterations, then quit\n"
-     << "   -s <SAI file>    load SAI file (takes precedence)\n"
-     << "   -T <simul:servo:gfx> specify update rates (in Hz) for the servo, the simulation, and the graphics\n";
+     << "   -s <SAI file>    load SAI file (takes precedence)\n";
 }
 
 
@@ -686,47 +646,6 @@ void parse_options(int argc, char ** argv)
 	errx(EXIT_FAILURE, "-s requires an argument (see -h for more info)");
       }
       sai_filename = argv[ii];
-      break;
-    case 'T':
-      ++ii;
-      if (ii >= argc) {
-	usage(cerr);
-	errx(EXIT_FAILURE, "-T requires an argument (see -h for more info)");
-      }
-      {
-	vector<string> token;
-	sfl::tokenize(argv[ii], ':', token);
-	sfl::token_to(token, 0, simul_rate);
-	sfl::token_to(token, 1, servo_rate);
-	sfl::token_to(token, 2, gfx_rate);
-	if (0 >= servo_rate) {
-	  usage(cerr);
-	  errx(EXIT_FAILURE, "invalid servo rate: %g Hz (must be > 0)", servo_rate);
-	}
-	if (simul_rate < servo_rate) {
-	  warnx("invalid simulation rate %g Hz adjusted to %g Hz", simul_rate, servo_rate);
-	  simul_rate = servo_rate;
-	}
-	if (gfx_rate > simul_rate) {
-	  warnx("invalid graphics rate %g Hz adjusted to %g Hz", gfx_rate, simul_rate);
-	  gfx_rate = simul_rate;
-	}
-	servo_dt = 1.0 / servo_rate;
-	simul_dt = 1.0 / simul_rate;
-	gfx_timer_ms = ceil(1000 / gfx_rate);
-	if (5 >= gfx_timer_ms) {
-	  warnx("invalid graphics timer %ud ms adjusted to 5 ms", gfx_timer_ms);
-	  gfx_timer_ms = 5;
-	}
-	n_simul_per_servo = ceil(simul_rate / servo_rate);
-	if (0 >= n_simul_per_servo) {
-	  n_simul_per_servo = 0;
-	}
-	n_simul_per_gfx = ceil(simul_rate / gfx_rate);
-	if (0 >= n_simul_per_gfx) {
-	  n_simul_per_gfx = 0;
-	}
-      }
       break;
     default:
       usage(cerr);

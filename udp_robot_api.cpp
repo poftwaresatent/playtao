@@ -204,7 +204,7 @@ namespace playtao {
       msg << "playtao::UDPRobotAPI::receiveState(): read [recv()] failed: " << strerror(errno);
       throw runtime_error(msg.str());
     }
-    if (nread != nbytes_) {
+    if (nread != static_cast<ssize_t>(nbytes_)) {
       ostringstream msg;
       msg << "playtao::UDPRobotAPI::receiveState(): protocol error: expected " << nbytes_
 	  << " bytes but got " << nread;
