@@ -39,8 +39,7 @@
 #include <tao/utility/TaoDeMassProp.h>
 
 #include <gfx/wrap_glut.hpp>
-#include <gfx/Viewport.hpp>
-#include <gfx/Mousehandler.hpp>
+#include <gfx/viewport.hpp>
 #include <gfx/gltrackball.h>
 
 #include <boost/shared_ptr.hpp>
@@ -79,7 +78,7 @@ static trackball_state * trackball;
 static int left_button_down(0);
 static int winwidth(400);
 static int winheight(400);
-static gfx::logical_bbox_t yz_bbox(-1, -1, 1, 1);
+static gfx::Viewport viewport;
 
 static bool step(true);
 static bool continuous(false);
@@ -183,7 +182,7 @@ void init_glut(int * argc, char ** argv,
 
 void reshape(int width, int height)
 {
-  Subwindow::DispatchResize(screen_point_t(width, height));
+  viewport.UpdateShape(width, height);
   winwidth = width;
   winheight = height;
 }
@@ -334,8 +333,6 @@ void timer(int handle)
     }
   }
   
-  Subwindow::DispatchUpdate();
-  
   glutSetWindow(handle);
   glutPostRedisplay();
   
@@ -345,7 +342,6 @@ void timer(int handle)
 
 void mouse(int button, int state, int x, int y)
 {
-  Subwindow::DispatchClick(button, state, screen_point_t(x, y));
   if (GLUT_LEFT_BUTTON == button) {
     if (GLUT_DOWN == state) {
       left_button_down = 1;
@@ -359,7 +355,6 @@ void mouse(int button, int state, int x, int y)
 
 void motion(int x, int y)
 {
-  Subwindow::DispatchDrag(screen_point_t(x, y));
   if (0 != left_button_down)
     gltrackball_track (trackball, x, y, winwidth, winheight);
 }
@@ -396,10 +391,12 @@ static void draw_tree(taoDNode /*const*/ * node)
 	   << "  node home global: " << home << "\n";
     }
     
-    yz_bbox.update(parent->frameGlobal()->translation()[1],
-		   parent->frameGlobal()->translation()[2]);
-    yz_bbox.update(home.translation()[1],
-		   home.translation()[2]);
+    viewport.UpdateBounds(parent->frameGlobal()->translation()[0],
+			  parent->frameGlobal()->translation()[1],
+			  parent->frameGlobal()->translation()[2]);
+    viewport.UpdateBounds(home.translation()[0],
+			  home.translation()[1],
+			  home.translation()[2]);
     
     glLineWidth(3);
     glColor3d(0.5, 0.5, 0.5);
@@ -425,10 +422,12 @@ static void draw_tree(taoDNode /*const*/ * node)
 	   << "  com global:       " << com.translation() << "\n";
     }
     
-    yz_bbox.update(node->frameGlobal()->translation()[1],
-		   node->frameGlobal()->translation()[2]);
-    yz_bbox.update(com.translation()[1],
-		   com.translation()[2]);
+    viewport.UpdateBounds(node->frameGlobal()->translation()[0],
+			  node->frameGlobal()->translation()[1],
+			  node->frameGlobal()->translation()[2]);
+    viewport.UpdateBounds(com.translation()[0],
+			  com.translation()[1],
+			  com.translation()[2]);
     
     glLineWidth(1);
     glColor3d(0.5, 1, 0.5);
@@ -466,17 +465,7 @@ void draw()
   glClear(GL_COLOR_BUFFER_BIT);
 #endif
   
-  static Viewport * view(0);
-  if ( ! view) {
-    view = new Viewport("view", yz_bbox, logical_bbox_t(0, 0, 1, 1));
-    ////view->SetMousehandler(Viewport::LEFT, m_mouse_meta);
-    view->Enable();
-  }
-  else {
-    view->Remap(yz_bbox);
-  }
-  
-  view->PushProjection();
+  viewport.PushOrtho();
   
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
@@ -499,7 +488,7 @@ void draw()
   
   draw_tree(model->_getKGMTree()->root);
   
-  view->PopProjection();
+  viewport.Pop();
   
   glFlush();
   glutSwapBuffers();
