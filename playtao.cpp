@@ -67,7 +67,8 @@ static trackball_state * trackball;
 static int left_button_down(0);
 static int winwidth(400);
 static int winheight(400);
-static gfx::Viewport viewport;
+static gfx::Viewport vp_tao(     0, 0, 0.5, 1);
+static gfx::Viewport vp_jspace(0.5, 0,   1, 1);
 
 static int verbosity(0);
 static string sai_filename("");
@@ -195,7 +196,8 @@ void init_glut(int * argc, char ** argv,
 
 void reshape(int width, int height)
 {
-  viewport.UpdateShape(width, height);
+  vp_tao.UpdateShape(width, height);
+  vp_jspace.UpdateShape(width, height);
   winwidth = width;
   winheight = height;
 }
@@ -208,7 +210,8 @@ void keyboard(unsigned char key, int x, int y)
     try {
       jspace::Model * nm(load_model());
       model.reset(nm);
-      viewport.ResetBounds();
+      vp_tao.ResetBounds();
+      vp_jspace.ResetBounds();
     }
     catch (std::exception const & ee) {
       cout << "oops while trying to reload file: " << ee.what() << "\n";
@@ -439,7 +442,7 @@ static void draw_tree(taoDNode /*const*/ * node)
   Eigen::Vector3d const p0(node->frameGlobal()->translation()[0],
 			   node->frameGlobal()->translation()[1],
 			   node->frameGlobal()->translation()[2]);
-  viewport.UpdateBounds(p0[0], p0[1], p0[2]);
+  vp_tao.UpdateBounds(p0[0], p0[1], p0[2]);
   if (true) {
     deFrame foo;
     foo.translation()[0] = 0.4;
@@ -521,7 +524,7 @@ static void draw_tree(taoDNode /*const*/ * node)
     Eigen::Vector3d const p1(com.translation()[0],
 			     com.translation()[1],
 			     com.translation()[2]);
-    viewport.UpdateBounds(p1[0], p1[1], p1[2]);
+    vp_tao.UpdateBounds(p1[0], p1[1], p1[2]);
     
     // cone from node's global frame to COM
     glMaterialfv(GL_FRONT, GL_AMBIENT,   com_ambi);
@@ -558,7 +561,7 @@ void draw()
 				// needs to be done at each iteration,
 				// not just once during init.
   
-  viewport.PushOrtho(0.5);
+  vp_tao.PushOrtho(0.5);
   
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
@@ -585,7 +588,35 @@ void draw()
   
   draw_tree(model->_getKGMTree()->root);
   
-  viewport.Pop();
+  vp_tao.Pop();
+  
+  vp_jspace.PushOrtho(0.5);
+  
+  glMatrixMode(GL_MODELVIEW);
+  glLoadIdentity();
+
+  glLightfv(GL_LIGHT0, GL_POSITION, l_pos);
+  
+  gltrackball_rotate(trackball);
+  glRotatef(-90, 1.0, 0.0, 0.0);
+  glRotatef(-90, 0.0, 0.0, 1.0);
+  
+  glLineWidth(1);
+  glBegin(GL_LINES);
+  glColor3d(1, 0, 0);
+  glVertex3d(0, 0, 0);
+  glVertex3d(1, 0, 0);
+  glColor3d(0, 1, 0);
+  glVertex3d(0, 0, 0);
+  glVertex3d(0, 1, 0);
+  glColor3d(0, 0, 1);
+  glVertex3d(0, 0, 0);
+  glVertex3d(0, 0, 1);
+  glEnd();
+  
+  draw_tree(model->_getKGMTree()->root);
+  
+  vp_jspace.Pop();
   
   glFlush();
   glutSwapBuffers();

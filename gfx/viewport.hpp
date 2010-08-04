@@ -33,7 +33,10 @@ namespace gfx {
   {
   public:
     Viewport();
+    Viewport(double subwin_x0, double subwin_y0, double subwin_x1, double subwin_y1);
     
+    /** The subwindow, in relative coordinates (0...1). */
+    void UpdateSubwin(double x0, double y0, double x1, double y1);
     void UpdateShape(int width, int height);
     void ResetShape();
     void UpdateBounds(double xx, double yy, double zz);
@@ -50,11 +53,15 @@ namespace gfx {
     void UpdateEye(double distance);
     
     struct {
+      double x0, y0, width, height;
+    } subwin_;
+    
+    struct {
       double x0, x1, y0, y1, z0, z1;
     } bounds_;
     
     struct {
-      int width, height;
+      int x0, y0, width, height, winwidth, winheight;
     } shape_;
     
     struct {
