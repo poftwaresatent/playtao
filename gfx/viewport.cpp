@@ -36,6 +36,7 @@ namespace gfx {
   
   Viewport::
   Viewport()
+    : bounds_master_(0)
   {
     UpdateSubwin(0, 0, 1, 1);
     ResetShape();
@@ -45,6 +46,7 @@ namespace gfx {
   
   Viewport::
   Viewport(double subwin_x0, double subwin_y0, double subwin_x1, double subwin_y1)
+    : bounds_master_(0)
   {
     UpdateSubwin(subwin_x0, subwin_y0, subwin_x1, subwin_y1);
     ResetShape();
@@ -234,8 +236,22 @@ namespace gfx {
   
   
   void Viewport::
+  MimicBounds(Viewport * other)
+  {
+    bounds_master_ = other;
+    dirty_ = true;
+  }
+  
+  
+  void Viewport::
   MaybeUpdate()
   {
+    if (bounds_master_) {
+      if (bounds_master_->dirty_) {
+	dirty_ = true;
+      }
+      bounds_ = bounds_master_->bounds_;
+    }
     if (dirty_) {
       UpdateSphere();
       UpdateOrtho();

@@ -90,6 +90,27 @@ static void cleanup(void);
 static void handle(int signum);
 static jspace::Model * load_model() throw(std::runtime_error);
 
+static GLfloat pipe_ambi[] = { 0.1, 0.1, 0.2, 1.0 };
+static GLfloat pipe_diff[] = { 0.8, 0.8, 0.6, 1.0 };
+static GLfloat pipe_spec[] = { 1.0, 1.0, 0.8, 1.0 };
+static GLfloat pipe_shin[] = { 50.0 };
+static GLfloat com_ambi[] = { 0.1, 0.2, 0.1, 1.0 };
+static GLfloat com_diff[] = { 0.8, 0.6, 0.8, 1.0 };
+static GLfloat com_spec[] = { 1.0, 0.8, 1.0, 1.0 };
+static GLfloat com_shin[] = { 50.0 };
+static GLfloat red_ambi[] = { 0.3, 0.0, 0.1, 1.0 };
+static GLfloat red_diff[] = { 0.8, 0.0, 0.0, 1.0 };
+static GLfloat red_spec[] = { 1.0, 0.6, 0.6, 1.0 };
+static GLfloat red_shin[] = { 50.0 };
+static GLfloat green_ambi[] = { 0.0, 0.3, 0.1, 1.0 };
+static GLfloat green_diff[] = { 0.0, 0.8, 0.0, 1.0 };
+static GLfloat green_spec[] = { 0.6, 1.0, 0.6, 1.0 };
+static GLfloat green_shin[] = { 50.0 };
+static GLfloat blue_ambi[] = { 0.0, 0.0, 0.3, 1.0 };
+static GLfloat blue_diff[] = { 0.0, 0.0, 0.8, 1.0 };
+static GLfloat blue_spec[] = { 0.6, 0.6, 1.0, 1.0 };
+static GLfloat blue_shin[] = { 50.0 };
+
 
 int main(int argc, char ** argv)
 {
@@ -103,7 +124,8 @@ int main(int argc, char ** argv)
     err(EXIT_FAILURE, "signal(SIGTERM)");
   
   parse_options(argc, argv);
-
+  vp_jspace.MimicBounds(&vp_tao);
+  
   try {
     playtao::UDPRobotAPI * robot(new playtao::UDPRobotAPI());
     robot->init(udp_port);
@@ -418,26 +440,6 @@ static bool draw_pipe(Eigen::Vector3d const & p0, Eigen::Vector3d const & p1,
 static void draw_tree(taoDNode /*const*/ * node)
 {
   static size_t prev_tick(812379);
-  static GLfloat pipe_ambi[] = { 0.1, 0.1, 0.2, 1.0 };
-  static GLfloat pipe_diff[] = { 0.8, 0.8, 0.6, 1.0 };
-  static GLfloat pipe_spec[] = { 1.0, 1.0, 0.8, 1.0 };
-  static GLfloat pipe_shin[] = { 50.0 };
-  static GLfloat com_ambi[] = { 0.1, 0.2, 0.1, 1.0 };
-  static GLfloat com_diff[] = { 0.8, 0.6, 0.8, 1.0 };
-  static GLfloat com_spec[] = { 1.0, 0.8, 1.0, 1.0 };
-  static GLfloat com_shin[] = { 50.0 };
-  static GLfloat red_ambi[] = { 0.3, 0.0, 0.1, 1.0 };
-  static GLfloat red_diff[] = { 0.8, 0.0, 0.0, 1.0 };
-  static GLfloat red_spec[] = { 1.0, 0.6, 0.6, 1.0 };
-  static GLfloat red_shin[] = { 50.0 };
-  static GLfloat green_ambi[] = { 0.0, 0.3, 0.1, 1.0 };
-  static GLfloat green_diff[] = { 0.0, 0.8, 0.0, 1.0 };
-  static GLfloat green_spec[] = { 0.6, 1.0, 0.6, 1.0 };
-  static GLfloat green_shin[] = { 50.0 };
-  static GLfloat blue_ambi[] = { 0.0, 0.0, 0.3, 1.0 };
-  static GLfloat blue_diff[] = { 0.0, 0.0, 0.8, 1.0 };
-  static GLfloat blue_spec[] = { 0.6, 0.6, 1.0, 1.0 };
-  static GLfloat blue_shin[] = { 50.0 };
   
   Eigen::Vector3d const p0(node->frameGlobal()->translation()[0],
 			   node->frameGlobal()->translation()[1],
@@ -554,6 +556,65 @@ static void draw_tree(taoDNode /*const*/ * node)
 }
 
 
+static void draw_transform(jspace::Transform const & gframe)
+{
+  glMatrixMode(GL_MODELVIEW);
+  glPushMatrix();
+  glMultMatrixd(gframe.matrix().data());
+  glMaterialfv(GL_FRONT, GL_AMBIENT,   red_ambi);
+  glMaterialfv(GL_FRONT, GL_DIFFUSE,   red_diff);
+  glMaterialfv(GL_FRONT, GL_SPECULAR,  red_spec);
+  glMaterialfv(GL_FRONT, GL_SHININESS, red_shin);
+  draw_pipe(Eigen::Vector3d::Zero(), Eigen::Vector3d(0.4, 0, 0), 0.1, 0);
+  glMaterialfv(GL_FRONT, GL_AMBIENT,   green_ambi);
+  glMaterialfv(GL_FRONT, GL_DIFFUSE,   green_diff);
+  glMaterialfv(GL_FRONT, GL_SPECULAR,  green_spec);
+  glMaterialfv(GL_FRONT, GL_SHININESS, green_shin);
+  draw_pipe(Eigen::Vector3d::Zero(), Eigen::Vector3d(0, 0.4, 0), 0.1, 0);
+  glMaterialfv(GL_FRONT, GL_AMBIENT,   blue_ambi);
+  glMaterialfv(GL_FRONT, GL_DIFFUSE,   blue_diff);
+  glMaterialfv(GL_FRONT, GL_SPECULAR,  blue_spec);
+  glMaterialfv(GL_FRONT, GL_SHININESS, blue_shin);
+  draw_pipe(Eigen::Vector3d::Zero(), Eigen::Vector3d(0, 0, 0.4), 0.1, 0);
+  glPopMatrix();
+}
+
+
+static void draw_jspace(jspace::Model const & model)
+{
+  for (size_t ii(0); ii < model.getNDOF(); ++ii) {
+    taoDNode * node(model.getNode(ii));
+    if ( ! node) {
+      continue;
+    }
+    jspace::Transform gframe;
+    if (model.getGlobalFrame(node, gframe)) {
+      draw_transform(gframe);
+    }
+  }
+}
+
+
+static void draw_global_axes()
+{
+  glMaterialfv(GL_FRONT, GL_AMBIENT,   red_ambi);
+  glMaterialfv(GL_FRONT, GL_DIFFUSE,   red_diff);
+  glMaterialfv(GL_FRONT, GL_SPECULAR,  red_spec);
+  glMaterialfv(GL_FRONT, GL_SHININESS, red_shin);
+  draw_pipe(Eigen::Vector3d::Zero(), Eigen::Vector3d(1, 0, 0), 0, 0.05);
+  glMaterialfv(GL_FRONT, GL_AMBIENT,   green_ambi);
+  glMaterialfv(GL_FRONT, GL_DIFFUSE,   green_diff);
+  glMaterialfv(GL_FRONT, GL_SPECULAR,  green_spec);
+  glMaterialfv(GL_FRONT, GL_SHININESS, green_shin);
+  draw_pipe(Eigen::Vector3d::Zero(), Eigen::Vector3d(0, 1, 0), 0, 0.05);
+  glMaterialfv(GL_FRONT, GL_AMBIENT,   blue_ambi);
+  glMaterialfv(GL_FRONT, GL_DIFFUSE,   blue_diff);
+  glMaterialfv(GL_FRONT, GL_SPECULAR,  blue_spec);
+  glMaterialfv(GL_FRONT, GL_SHININESS, blue_shin);
+  draw_pipe(Eigen::Vector3d::Zero(), Eigen::Vector3d(0, 0, 1), 0, 0.05);
+}
+
+
 void draw()
 {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -561,30 +622,20 @@ void draw()
 				// needs to be done at each iteration,
 				// not just once during init.
   
+  static GLfloat l_pos[] = { 1.0, 1.0, 1.0, 0.0 };
+  
   vp_tao.PushOrtho(0.5);
   
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
 
-  static GLfloat l_pos[] = { 1.0, 1.0, 1.0, 0.0 };
   glLightfv(GL_LIGHT0, GL_POSITION, l_pos);
   
   gltrackball_rotate(trackball);
   glRotatef(-90, 1.0, 0.0, 0.0);
   glRotatef(-90, 0.0, 0.0, 1.0);
   
-  glLineWidth(1);
-  glBegin(GL_LINES);
-  glColor3d(1, 0, 0);
-  glVertex3d(0, 0, 0);
-  glVertex3d(1, 0, 0);
-  glColor3d(0, 1, 0);
-  glVertex3d(0, 0, 0);
-  glVertex3d(0, 1, 0);
-  glColor3d(0, 0, 1);
-  glVertex3d(0, 0, 0);
-  glVertex3d(0, 0, 1);
-  glEnd();
+  draw_global_axes();
   
   draw_tree(model->_getKGMTree()->root);
   
@@ -594,27 +645,16 @@ void draw()
   
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
-
+  
   glLightfv(GL_LIGHT0, GL_POSITION, l_pos);
   
   gltrackball_rotate(trackball);
   glRotatef(-90, 1.0, 0.0, 0.0);
   glRotatef(-90, 0.0, 0.0, 1.0);
   
-  glLineWidth(1);
-  glBegin(GL_LINES);
-  glColor3d(1, 0, 0);
-  glVertex3d(0, 0, 0);
-  glVertex3d(1, 0, 0);
-  glColor3d(0, 1, 0);
-  glVertex3d(0, 0, 0);
-  glVertex3d(0, 1, 0);
-  glColor3d(0, 0, 1);
-  glVertex3d(0, 0, 0);
-  glVertex3d(0, 0, 1);
-  glEnd();
+  draw_global_axes();
   
-  draw_tree(model->_getKGMTree()->root);
+  draw_jspace(*model);
   
   vp_jspace.Pop();
   

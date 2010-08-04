@@ -40,6 +40,7 @@ namespace gfx {
     void UpdateShape(int width, int height);
     void ResetShape();
     void UpdateBounds(double xx, double yy, double zz);
+    void MimicBounds(Viewport * other);
     void ResetBounds();
     void PushOrtho(double buffer_distance);
     void Pop();
@@ -81,6 +82,7 @@ namespace gfx {
     } eye_;
     
     bool dirty_;
+    Viewport * bounds_master_;
   };
 
 }
