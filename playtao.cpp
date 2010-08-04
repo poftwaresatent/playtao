@@ -591,6 +591,17 @@ static void draw_jspace(jspace::Model const & model)
     if (model.getGlobalFrame(node, gframe)) {
       draw_transform(gframe);
     }
+    if (model.computeGlobalCOMFrame(node, gframe)) {
+      glMaterialfv(GL_FRONT, GL_AMBIENT,   com_ambi);
+      glMaterialfv(GL_FRONT, GL_DIFFUSE,   com_diff);
+      glMaterialfv(GL_FRONT, GL_SPECULAR,  com_spec);
+      glMaterialfv(GL_FRONT, GL_SHININESS, com_shin);
+      glMatrixMode(GL_MODELVIEW);
+      glPushMatrix();
+      glTranslated(gframe.translation().x(), gframe.translation().y(), gframe.translation().z());
+      glutSolidSphere(0.1, 20, 16);
+      glPopMatrix();
+    }
   }
 }
 
