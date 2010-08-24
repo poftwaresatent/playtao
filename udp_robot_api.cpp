@@ -88,7 +88,7 @@ namespace playtao {
 	state.time_usec_ = now.tv_usec;
       }
       
-      state.force_.clear();
+      state.force_.resize(0);
     }
     catch (runtime_error const & ee) {
       status.ok = false;
@@ -100,7 +100,7 @@ namespace playtao {
   
   
   jspace::Status UDPRobotAPI::
-  writeCommand(std::vector<double> const & command)
+  writeCommand(jspace::Vector const & command)
   {
     return jspace::Status(false, "calling playtao::UDPRobotAPI::writeCommand() makes no sense");
   }

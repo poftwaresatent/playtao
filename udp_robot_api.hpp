@@ -46,7 +46,7 @@ namespace playtao {
     virtual ~UDPRobotAPI();
     
     virtual jspace::Status readState(jspace::State & state);
-    virtual jspace::Status writeCommand(std::vector<double> const & command);
+    virtual jspace::Status writeCommand(jspace::Vector const & command);
     virtual void shutdown();
     
     void init(/** port specification, will get passed to
