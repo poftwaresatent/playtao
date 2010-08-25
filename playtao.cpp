@@ -74,7 +74,7 @@ static int verbosity(0);
 static string sai_filename("");
 static int n_iterations(-1);	// -1 means graphics mode, user presses 'q' to quit
 static unsigned int gfx_timer_ms(20);
-static std::string udp_port("1382");
+static std::string udp_port("3589");
 
 static void usage(ostream & os);
 static void parse_options(int argc, char ** argv);
@@ -89,27 +89,6 @@ static void motion(int x, int y);
 static void cleanup(void);
 static void handle(int signum);
 static jspace::Model * load_model() throw(std::runtime_error);
-
-static GLfloat pipe_ambi[] = { 0.1, 0.1, 0.2, 1.0 };
-static GLfloat pipe_diff[] = { 0.8, 0.8, 0.6, 1.0 };
-static GLfloat pipe_spec[] = { 1.0, 1.0, 0.8, 1.0 };
-static GLfloat pipe_shin[] = { 50.0 };
-static GLfloat com_ambi[] = { 0.1, 0.2, 0.1, 1.0 };
-static GLfloat com_diff[] = { 0.8, 0.6, 0.8, 1.0 };
-static GLfloat com_spec[] = { 1.0, 0.8, 1.0, 1.0 };
-static GLfloat com_shin[] = { 50.0 };
-static GLfloat red_ambi[] = { 0.3, 0.0, 0.1, 1.0 };
-static GLfloat red_diff[] = { 0.8, 0.0, 0.0, 1.0 };
-static GLfloat red_spec[] = { 1.0, 0.6, 0.6, 1.0 };
-static GLfloat red_shin[] = { 50.0 };
-static GLfloat green_ambi[] = { 0.0, 0.3, 0.1, 1.0 };
-static GLfloat green_diff[] = { 0.0, 0.8, 0.0, 1.0 };
-static GLfloat green_spec[] = { 0.6, 1.0, 0.6, 1.0 };
-static GLfloat green_shin[] = { 50.0 };
-static GLfloat blue_ambi[] = { 0.0, 0.0, 0.3, 1.0 };
-static GLfloat blue_diff[] = { 0.0, 0.0, 0.8, 1.0 };
-static GLfloat blue_spec[] = { 0.6, 0.6, 1.0, 1.0 };
-static GLfloat blue_shin[] = { 50.0 };
 
 
 int main(int argc, char ** argv)
@@ -322,7 +301,7 @@ bool update()
   size_t const ndof(model->getNDOF());
   
   if ( ! robot_api) {
-    state.init(ndof, ndof, 0);
+    state.init(ndof, ndof, ndof);
   }
   else {
     jspace::Status status(robot_api->readState(state));
@@ -330,13 +309,16 @@ bool update()
       cerr << "update(): robot_api->readState() failed: " << status.errstr << "\n";
       return false;
     }
-    if ((state.position_.size() != ndof) || (state.velocity_.size() != ndof)) {
+    if ((state.position_.size() != static_cast<ssize_t>(ndof))
+	|| (state.velocity_.size() != static_cast<ssize_t>(ndof))
+	|| (state.force_.size() != static_cast<ssize_t>(ndof))) {
       if (verbosity >= 1) {
 	cerr << "update(): WARNING state has " << state.position_.size()
-	     << " positions and " << state.velocity_.size()
-	     << " velocities but should have " << ndof << " of each\n";
+	     << " positions, " << state.velocity_.size()
+	     << " velocities, and " << state.force_.size()
+	     << " forces, but it should have " << ndof << " of each\n";
       }
-      state.resizeAndPadWithZeros(ndof, ndof, 0);
+      state.resizeAndPadWithZeros(ndof, ndof, ndof);
     }
   }
   
@@ -462,24 +444,15 @@ static void draw_tree(taoDNode /*const*/ * node)
     foo.translation()[2] = 0.4;
     deFrame pz;
     pz.multiply(*node->frameGlobal(), foo);
-    glMaterialfv(GL_FRONT, GL_AMBIENT,   red_ambi);
-    glMaterialfv(GL_FRONT, GL_DIFFUSE,   red_diff);
-    glMaterialfv(GL_FRONT, GL_SPECULAR,  red_spec);
-    glMaterialfv(GL_FRONT, GL_SHININESS, red_shin);
+    glColor3d(1, 0, 0);
     draw_pipe(p0, Eigen::Vector3d(px.translation()[0],
 				  px.translation()[1],
 				  px.translation()[2]), 0.1, 0);
-    glMaterialfv(GL_FRONT, GL_AMBIENT,   green_ambi);
-    glMaterialfv(GL_FRONT, GL_DIFFUSE,   green_diff);
-    glMaterialfv(GL_FRONT, GL_SPECULAR,  green_spec);
-    glMaterialfv(GL_FRONT, GL_SHININESS, green_shin);
+    glColor3d(0, 1, 0);
     draw_pipe(p0, Eigen::Vector3d(py.translation()[0],
 				  py.translation()[1],
 				  py.translation()[2]), 0.1, 0);
-    glMaterialfv(GL_FRONT, GL_AMBIENT,   blue_ambi);
-    glMaterialfv(GL_FRONT, GL_DIFFUSE,   blue_diff);
-    glMaterialfv(GL_FRONT, GL_SPECULAR,  blue_spec);
-    glMaterialfv(GL_FRONT, GL_SHININESS, blue_shin);
+    glColor3d(0, 0, 1);
     draw_pipe(p0, Eigen::Vector3d(pz.translation()[0],
 				  pz.translation()[1],
 				  pz.translation()[2]), 0.1, 0);
@@ -497,18 +470,11 @@ static void draw_tree(taoDNode /*const*/ * node)
 	   << "  node home local:  " << *node->frameHome() << "\n"
 	   << "  node home global: " << home << "\n";
     }
-    
-    glMaterialfv(GL_FRONT, GL_AMBIENT,   pipe_ambi);
-    glMaterialfv(GL_FRONT, GL_DIFFUSE,   pipe_diff);
-    glMaterialfv(GL_FRONT, GL_SPECULAR,  pipe_spec);
-    glMaterialfv(GL_FRONT, GL_SHININESS, pipe_shin);
+    glColor3d(0.8, 0.8, 0.6);
     draw_pipe(Eigen::Vector3d(parent->frameGlobal()->translation()[0],
 			      parent->frameGlobal()->translation()[1],
 			      parent->frameGlobal()->translation()[2]),
 	      p0,
-	      // Eigen::Vector3d(home.translation()[0],
-	      // 		      home.translation()[1],
-	      // 		      home.translation()[2]),
 	      0.05, 0.05);
   }
   
@@ -529,10 +495,7 @@ static void draw_tree(taoDNode /*const*/ * node)
     vp_tao.UpdateBounds(p1[0], p1[1], p1[2]);
     
     // cone from node's global frame to COM
-    glMaterialfv(GL_FRONT, GL_AMBIENT,   com_ambi);
-    glMaterialfv(GL_FRONT, GL_DIFFUSE,   com_diff);
-    glMaterialfv(GL_FRONT, GL_SPECULAR,  com_spec);
-    glMaterialfv(GL_FRONT, GL_SHININESS, com_shin);
+    glColor3d(0.8, 0.6, 0.8);
     draw_pipe(Eigen::Vector3d(node->frameGlobal()->translation()[0],
 			      node->frameGlobal()->translation()[1],
 			      node->frameGlobal()->translation()[2]),
@@ -561,20 +524,11 @@ static void draw_transform(jspace::Transform const & gframe)
   glMatrixMode(GL_MODELVIEW);
   glPushMatrix();
   glMultMatrixd(gframe.matrix().data());
-  glMaterialfv(GL_FRONT, GL_AMBIENT,   red_ambi);
-  glMaterialfv(GL_FRONT, GL_DIFFUSE,   red_diff);
-  glMaterialfv(GL_FRONT, GL_SPECULAR,  red_spec);
-  glMaterialfv(GL_FRONT, GL_SHININESS, red_shin);
+  glColor3d(1, 0, 0);
   draw_pipe(Eigen::Vector3d::Zero(), Eigen::Vector3d(0.4, 0, 0), 0.1, 0);
-  glMaterialfv(GL_FRONT, GL_AMBIENT,   green_ambi);
-  glMaterialfv(GL_FRONT, GL_DIFFUSE,   green_diff);
-  glMaterialfv(GL_FRONT, GL_SPECULAR,  green_spec);
-  glMaterialfv(GL_FRONT, GL_SHININESS, green_shin);
+  glColor3d(0, 1, 0);
   draw_pipe(Eigen::Vector3d::Zero(), Eigen::Vector3d(0, 0.4, 0), 0.1, 0);
-  glMaterialfv(GL_FRONT, GL_AMBIENT,   blue_ambi);
-  glMaterialfv(GL_FRONT, GL_DIFFUSE,   blue_diff);
-  glMaterialfv(GL_FRONT, GL_SPECULAR,  blue_spec);
-  glMaterialfv(GL_FRONT, GL_SHININESS, blue_shin);
+  glColor3d(0, 0, 1);
   draw_pipe(Eigen::Vector3d::Zero(), Eigen::Vector3d(0, 0, 0.4), 0.1, 0);
   glPopMatrix();
 }
@@ -592,10 +546,7 @@ static void draw_jspace(jspace::Model const & model)
       draw_transform(gframe);
     }
     if (model.computeGlobalCOMFrame(node, gframe)) {
-      glMaterialfv(GL_FRONT, GL_AMBIENT,   com_ambi);
-      glMaterialfv(GL_FRONT, GL_DIFFUSE,   com_diff);
-      glMaterialfv(GL_FRONT, GL_SPECULAR,  com_spec);
-      glMaterialfv(GL_FRONT, GL_SHININESS, com_shin);
+      glColor3d(0.8, 0.6, 0.8);
       glMatrixMode(GL_MODELVIEW);
       glPushMatrix();
       glTranslated(gframe.translation().x(), gframe.translation().y(), gframe.translation().z());
@@ -608,20 +559,11 @@ static void draw_jspace(jspace::Model const & model)
 
 static void draw_global_axes()
 {
-  glMaterialfv(GL_FRONT, GL_AMBIENT,   red_ambi);
-  glMaterialfv(GL_FRONT, GL_DIFFUSE,   red_diff);
-  glMaterialfv(GL_FRONT, GL_SPECULAR,  red_spec);
-  glMaterialfv(GL_FRONT, GL_SHININESS, red_shin);
+  glColor3d(1, 0, 0);
   draw_pipe(Eigen::Vector3d::Zero(), Eigen::Vector3d(1, 0, 0), 0, 0.05);
-  glMaterialfv(GL_FRONT, GL_AMBIENT,   green_ambi);
-  glMaterialfv(GL_FRONT, GL_DIFFUSE,   green_diff);
-  glMaterialfv(GL_FRONT, GL_SPECULAR,  green_spec);
-  glMaterialfv(GL_FRONT, GL_SHININESS, green_shin);
+  glColor3d(0, 1, 0);
   draw_pipe(Eigen::Vector3d::Zero(), Eigen::Vector3d(0, 1, 0), 0, 0.05);
-  glMaterialfv(GL_FRONT, GL_AMBIENT,   blue_ambi);
-  glMaterialfv(GL_FRONT, GL_DIFFUSE,   blue_diff);
-  glMaterialfv(GL_FRONT, GL_SPECULAR,  blue_spec);
-  glMaterialfv(GL_FRONT, GL_SHININESS, blue_shin);
+  glColor3d(0, 0, 1);
   draw_pipe(Eigen::Vector3d::Zero(), Eigen::Vector3d(0, 0, 1), 0, 0.05);
 }
 
@@ -632,6 +574,16 @@ void draw()
   glEnable(GL_DEPTH_TEST);	// Arghl!!! Contrary to doc, this
 				// needs to be done at each iteration,
 				// not just once during init.
+  
+  // global specular and shininess values
+  static GLfloat global_spec[] = { 1.0, 1.0, 1.0, 1.0 };
+  static GLfloat global_shin[] = { 50.0 };
+  glMaterialfv(GL_FRONT, GL_SPECULAR,  global_spec);
+  glMaterialfv(GL_FRONT, GL_SHININESS, global_shin);
+  
+  // the rest is done via glColorXx()...
+  glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE);
+  glEnable(GL_COLOR_MATERIAL);
   
   static GLfloat l_pos[] = { 1.0, 1.0, 1.0, 0.0 };
   

@@ -46,8 +46,10 @@ namespace playtao {
   UDPRobotAPI()
     : buf_npos_(0),
       buf_nvel_(0),
+      buf_nforce_(0),
       pos_(0),
       vel_(0),
+      force_(0),
       buffer_(0)
   {
   }
@@ -76,6 +78,11 @@ namespace playtao {
       state.velocity_.resize(nvel_);
       for (uint64_t ii(0); ii < nvel_; ++ii) {
 	state.velocity_[ii] = vel_[ii];
+      }
+      
+      state.force_.resize(nforce_);
+      for (uint64_t ii(0); ii < nforce_; ++ii) {
+	state.force_[ii] = force_[ii];
       }
       
       struct timeval now;
@@ -118,8 +125,10 @@ namespace playtao {
     
     buf_npos_ = 0;
     buf_nvel_ = 0;
+    buf_nforce_ = 0;
     pos_ = 0;
     vel_ = 0;
+    force_ = 0;
     buffer_ = 0;
   }
   
@@ -170,7 +179,7 @@ namespace playtao {
       throw runtime_error(msg.str());
     }
     
-    initBuffer(0, 0);
+    initBuffer(0, 0, 0);
   }
   
   
@@ -183,7 +192,7 @@ namespace playtao {
     
     // peek non-blocking at the beginning of the message
     ssize_t nread;
-    struct { uint64_t npos, nvel; } peek;
+    struct { uint64_t npos, nvel, nforce; } peek;
     nread = recv(udp_sock_fd_, &peek, sizeof(peek), MSG_PEEK | MSG_DONTWAIT);
     if (-1 == nread) {
       if ((EAGAIN == errno) || (EWOULDBLOCK == errno)) {
@@ -195,7 +204,7 @@ namespace playtao {
     }
     
     // resize buffer if required, based on the received header data
-    initBuffer(peek.npos, peek.nvel);
+    initBuffer(peek.npos, peek.nvel, peek.nforce);
     
     // read the entire message
     nread = recv(udp_sock_fd_, buffer_, nbytes_, 0);
@@ -214,17 +223,17 @@ namespace playtao {
   
   
   void UDPRobotAPI::
-  initBuffer(uint64_t npos,
-	     uint64_t nvel)
+  initBuffer(uint64_t npos, uint64_t nvel, uint64_t nforce)
     throw(std::runtime_error)
   {
-    if (buffer_ && (npos == npos_) && (nvel == nvel_)) {
+    if (buffer_ && (npos == npos_) && (nvel == nvel_) && (nforce == nforce_)) {
       return;
     }
     
     npos_ = npos;
     nvel_ = nvel;
-    nbytes_ = 2 * sizeof(uint64_t) + (npos + nvel) * sizeof(float);
+    nforce_ = nforce;
+    nbytes_ = 3 * sizeof(uint64_t) + (npos + nvel + nforce) * sizeof(float);
     
     void * nb(realloc(buffer_, nbytes_));
     if (0 == nb) {
@@ -242,8 +251,10 @@ namespace playtao {
     
     buf_npos_ = (uint64_t *) buffer_;
     buf_nvel_ = buf_npos_ + 1;
+    buf_nforce_ = buf_nvel_ + 1;
     pos_ = (float*) (buf_nvel_ + 1);
     vel_ = pos_ + npos_;
+    force_ = vel_ + nvel_;
   }
 
 }

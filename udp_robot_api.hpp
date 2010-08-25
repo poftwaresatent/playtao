@@ -58,14 +58,14 @@ namespace playtao {
     
   protected:
     void receiveState() throw(std::runtime_error);
-    void initBuffer(uint64_t npos, uint64_t nvel) throw(std::runtime_error);
+    void initBuffer(uint64_t npos, uint64_t nvel, uint64_t nforce) throw(std::runtime_error);
 
     std::string port_;
-    uint64_t npos_, nvel_, nbytes_;
+    uint64_t npos_, nvel_, nforce_, nbytes_;
     int udp_sock_fd_;
     
-    uint64_t * buf_npos_, * buf_nvel_;
-    float * pos_, * vel_;
+    uint64_t * buf_npos_, * buf_nvel_, * buf_nforce_;
+    float * pos_, * vel_, * force_;
     char * buffer_;
   };
   
