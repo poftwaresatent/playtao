@@ -36,6 +36,11 @@ extern "C" {
 #include <errno.h>
 }
 
+//#undef DEBUG
+#ifdef DEBUG
+# include <stdio.h>
+#endif // DEBUG
+
 using namespace std;
 
 
@@ -203,6 +208,11 @@ namespace playtao {
       throw runtime_error(msg.str());
     }
     
+#ifdef DEBUG
+    fprintf(stderr, "receiving  npos: %zu  nvel: %zu  nforce: %zu\n",
+	    (size_t) peek.npos, (size_t) peek.nvel, (size_t) peek.nforce);
+#endif // DEBUG
+
     // resize buffer if required, based on the received header data
     initBuffer(peek.npos, peek.nvel, peek.nforce);
     
@@ -219,6 +229,30 @@ namespace playtao {
 	  << " bytes but got " << nread;
       throw runtime_error(msg.str());
     }
+
+#ifdef DEBUG
+    char const * fieldname[] = { "pos  ", "vel  ", "force" };
+    float const * field[] = { pos_, vel_, force_ };
+    size_t ndata[] = { peek.npos, peek.nvel, peek.nforce };
+    for (size_t ii(0); ii < 3; ++ii) {
+      fprintf(stderr, "  %s:  ", fieldname[ii]);
+      for (size_t jj(0); jj < ndata[ii]; ++jj) {
+    	if (isinf(field[ii][jj])) {
+	  fprintf(stderr, " inf    ");
+	}
+	else if (isnan(field[ii][jj])) {
+	  fprintf(stderr, " nan    ");
+	}
+	else if (fabs(fmod(field[ii][jj], 1)) < 1e-6) {
+	  fprintf(stderr, "%- 7d  ", static_cast<int>(rint(field[ii][jj])));
+	}
+	else {
+	  fprintf(stderr, "% 6.4f  ", field[ii][jj]);
+	}
+      }
+      fprintf(stderr, "\n");
+    }
+#endif // DEBUG
   }
   
   
@@ -252,7 +286,7 @@ namespace playtao {
     buf_npos_ = (uint64_t *) buffer_;
     buf_nvel_ = buf_npos_ + 1;
     buf_nforce_ = buf_nvel_ + 1;
-    pos_ = (float*) (buf_nvel_ + 1);
+    pos_ = (float*) (buf_nforce_ + 1);
     vel_ = pos_ + npos_;
     force_ = vel_ + nvel_;
   }
