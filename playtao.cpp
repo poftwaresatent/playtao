@@ -67,8 +67,8 @@ static trackball_state * trackball;
 static int left_button_down(0);
 static int winwidth(400);
 static int winheight(400);
-static gfx::Viewport vp_tao(     0, 0, 0.5, 1);
-static gfx::Viewport vp_jspace(0.5, 0,   1, 1);
+static gfx::Viewport vp_tao(     0, 0, 1, 1);//0.5, 1);
+//static gfx::Viewport vp_jspace(0.5, 0,   1, 1);
 
 static int verbosity(0);
 static string sai_filename("");
@@ -103,7 +103,7 @@ int main(int argc, char ** argv)
     err(EXIT_FAILURE, "signal(SIGTERM)");
   
   parse_options(argc, argv);
-  vp_jspace.MimicBounds(&vp_tao);
+  //  vp_jspace.MimicBounds(&vp_tao);
   
   try {
     playtao::UDPRobotAPI * robot(new playtao::UDPRobotAPI());
@@ -153,7 +153,12 @@ jspace::Model * load_model() throw(std::runtime_error)
   jspace::tao_tree_info_s * cc_tree(brep->createTreeInfo());
   delete brep;
   
-  return new jspace::Model(kgm_tree, cc_tree);
+  jspace::Model * mm(new jspace::Model());
+  if (0 != mm->init(kgm_tree, cc_tree, &cerr)) {
+    delete mm;
+    throw runtime_error("jspace::Model::init() failed");
+  }
+  return mm;
 }
 
 
@@ -198,7 +203,7 @@ void init_glut(int * argc, char ** argv,
 void reshape(int width, int height)
 {
   vp_tao.UpdateShape(width, height);
-  vp_jspace.UpdateShape(width, height);
+  //  vp_jspace.UpdateShape(width, height);
   winwidth = width;
   winheight = height;
 }
@@ -212,7 +217,7 @@ void keyboard(unsigned char key, int x, int y)
       jspace::Model * nm(load_model());
       model.reset(nm);
       vp_tao.ResetBounds();
-      vp_jspace.ResetBounds();
+      //      vp_jspace.ResetBounds();
     }
     catch (std::exception const & ee) {
       cout << "oops while trying to reload file: " << ee.what() << "\n";
@@ -604,22 +609,28 @@ void draw()
   
   vp_tao.Pop();
   
-  vp_jspace.PushOrtho(0.5);
+  // // jspace::Matrix Jacobian;
+  // // taoDNode * end_effector(model->getNode(6));
+  // // if (end_effector && model->computeJacobian(end_effector, Jacobian)) {
+  // //   jspace::pretty_print(Jacobian, cout, "Jacobian", "  ");
+  // // }
+
+  // vp_jspace.PushOrtho(0.5);
   
-  glMatrixMode(GL_MODELVIEW);
-  glLoadIdentity();
+  // glMatrixMode(GL_MODELVIEW);
+  // glLoadIdentity();
   
-  glLightfv(GL_LIGHT0, GL_POSITION, l_pos);
+  // glLightfv(GL_LIGHT0, GL_POSITION, l_pos);
   
-  gltrackball_rotate(trackball);
-  glRotatef(-90, 1.0, 0.0, 0.0);
-  glRotatef(-90, 0.0, 0.0, 1.0);
+  // gltrackball_rotate(trackball);
+  // glRotatef(-90, 1.0, 0.0, 0.0);
+  // glRotatef(-90, 0.0, 0.0, 1.0);
   
-  draw_global_axes();
+  // draw_global_axes();
   
-  draw_jspace(*model);
+  // draw_jspace(*model);
   
-  vp_jspace.Pop();
+  // vp_jspace.Pop();
   
   glFlush();
   glutSwapBuffers();
