@@ -61,6 +61,7 @@ using namespace std;
 
 static boost::shared_ptr<jspace::Model> model;
 static boost::shared_ptr<jspace::RobotAPI> robot_api;
+static boost::shared_ptr<jspace::State> jspace_state;
 static GLUquadricObj * qobj(0);
 static playtao::UDPGfxParam udp_gfx_param;
 static playtao::gfx_param_s gfx_param;
@@ -324,32 +325,34 @@ bool update()
     return false;
   }
   
-  jspace::State state;
   size_t const ndof(model->getNDOF());
+  if ( ! jspace_state) {
+    jspace_state.reset(new jspace::State());
+  }
   
   if ( ! robot_api) {
-    state.init(ndof, ndof, ndof);
+    jspace_state->init(ndof, ndof, ndof);
   }
   else {
-    jspace::Status status(robot_api->readState(state));
+    jspace::Status status(robot_api->readState(*jspace_state));
     if ( ! status) {
       cerr << "update(): robot_api->readState() failed: " << status.errstr << "\n";
       return false;
     }
-    if ((state.position_.size() != static_cast<ssize_t>(ndof))
-	|| (state.velocity_.size() != static_cast<ssize_t>(ndof))
-	|| (state.force_.size() != static_cast<ssize_t>(ndof))) {
+    if ((jspace_state->position_.size() != static_cast<ssize_t>(ndof))
+	|| (jspace_state->velocity_.size() != static_cast<ssize_t>(ndof))
+	|| (jspace_state->force_.size() != static_cast<ssize_t>(ndof))) {
       if (verbosity >= 1) {
-	cerr << "update(): WARNING state has " << state.position_.size()
-	     << " positions, " << state.velocity_.size()
-	     << " velocities, and " << state.force_.size()
+	cerr << "update(): WARNING state has " << jspace_state->position_.size()
+	     << " positions, " << jspace_state->velocity_.size()
+	     << " velocities, and " << jspace_state->force_.size()
 	     << " forces, but it should have " << ndof << " of each\n";
       }
-      state.resizeAndPadWithZeros(ndof, ndof, ndof);
+      jspace_state->resizeAndPadWithZeros(ndof, ndof, ndof);
     }
   }
   
-  model->update(state);
+  model->update(*jspace_state);
   
   if (verbosity >= 2) {
     jspace::dump_tao_tree_info(cout, model->_getKGMTree(), "", true);
@@ -581,7 +584,21 @@ static void draw_tree(taoDNode /*const*/ * node)
       deFrame gp0, gp1;
       gp0.multiply(*node->frameGlobal(), lp0);
       gp1.multiply(*node->frameGlobal(), lp1);
-      glColor3d(1, 1, 1);
+      if (( ! jspace_state) || (jspace_state->force_.size() <= node->getID())) {
+	glColor3d(1, 1, 1);
+      }
+      else {
+	double const force(fabs(jspace_state->force_[node->getID()]));
+	if (force < 1.0) {
+	  glColor3d(0.5 + force / 2, 1, 1 - force);
+	}
+	else if (force < 2.0) {
+	  glColor3d(1, 0, force - 1);
+	}
+	else {
+	  glColor3d(1, 0, 1);
+	}
+      }
       draw_pipe(Eigen::Vector3d(gp0.translation()[0],
 				gp0.translation()[1],
 				gp0.translation()[2]),

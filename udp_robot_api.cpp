@@ -99,8 +99,6 @@ namespace playtao {
 	state.time_sec_ = now.tv_sec;
 	state.time_usec_ = now.tv_usec;
       }
-      
-      state.force_.resize(0);
     }
     catch (runtime_error const & ee) {
       status.ok = false;
