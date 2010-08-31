@@ -115,6 +115,14 @@ int main(int argc, char ** argv)
     robot_api.reset(robot);
     
     udp_gfx_param.init(udp_gfx_port);
+    gfx_param.long_cone_length = 0.5;
+    gfx_param.long_cone_base = 0.02;
+    gfx_param.short_cone_length = 0.2;
+    gfx_param.short_cone_base = 0.02;
+    gfx_param.link_radius = 0.03;
+    gfx_param.com_radius = 0.02;
+    gfx_param.joint_radius = 0.04;
+    gfx_param.joint_length = 0.09;
     
     model.reset(load_model());
     
@@ -403,7 +411,7 @@ void cleanup(void)
 
 
 static bool draw_pipe(Eigen::Vector3d const & p0, Eigen::Vector3d const & p1,
-		      double r0, double r1)
+		      double r0, double r1, bool capped = true)
 {
   static Eigen::Vector3d const ez(0, 0, 1);
   Eigen::Vector3d ezd(p1 - p0);
@@ -432,6 +440,16 @@ static bool draw_pipe(Eigen::Vector3d const & p0, Eigen::Vector3d const & p1,
   glPushMatrix();
   glMultMatrixd(transform.data());
   gluCylinder(qobj, r0, r1, ezdnorm, 24, 24);
+  if (capped) {
+    glPushMatrix();
+    glTranslated(0, 0, ezdnorm);
+    gluDisk(qobj, 0, r1, 24, 2);
+    glPopMatrix();
+    glPushMatrix();
+    glRotated(180, 1, 0, 0);
+    gluDisk(qobj, 0, r0, 24, 2);
+    glPopMatrix();
+  }
   glPopMatrix();
   
   return true;
@@ -532,6 +550,46 @@ static void draw_tree(taoDNode /*const*/ * node)
     glTranslated(p1[0], p1[1], p1[2]);
     glutSolidSphere(gfx_param.com_radius, 20, 16);
     glPopMatrix();
+  }
+  
+  taoJointRevolute const * joint(dynamic_cast<taoJointRevolute const *>(node->getJointList()));
+  if (joint) {
+    deFrame lp0, lp1;
+    lp0.translation()[0] = 0;
+    lp0.translation()[1] = 0;
+    lp0.translation()[2] = 0;
+    lp1.translation()[0] = 0;
+    lp1.translation()[1] = 0;
+    lp1.translation()[2] = 0;
+    bool ok(true);
+    if (TAO_AXIS_X == joint->getAxis()) {
+      lp0.translation()[0] = -gfx_param.joint_length;
+      lp1.translation()[0] =  gfx_param.joint_length;
+    }
+    else if (TAO_AXIS_Y == joint->getAxis()) {
+      lp0.translation()[1] = -gfx_param.joint_length;
+      lp1.translation()[1] =  gfx_param.joint_length;
+    }
+    else if (TAO_AXIS_Z == joint->getAxis()) {
+      lp0.translation()[2] = -gfx_param.joint_length;
+      lp1.translation()[2] =  gfx_param.joint_length;
+    }
+    else {
+      ok = false;
+    }
+    if (ok) {
+      deFrame gp0, gp1;
+      gp0.multiply(*node->frameGlobal(), lp0);
+      gp1.multiply(*node->frameGlobal(), lp1);
+      glColor3d(1, 1, 1);
+      draw_pipe(Eigen::Vector3d(gp0.translation()[0],
+				gp0.translation()[1],
+				gp0.translation()[2]),
+		Eigen::Vector3d(gp1.translation()[0],
+				gp1.translation()[1],
+				gp1.translation()[2]),
+		gfx_param.joint_radius, gfx_param.joint_radius);
+    }
   }
   
   for (taoDNode * child(node->getDChild()); child != 0; child = child->getDSibling())

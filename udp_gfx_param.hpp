@@ -46,7 +46,9 @@ namespace playtao {
 	short_cone_length(0.4),
 	short_cone_base(0.1),
 	link_radius(0.05),
-	com_radius(0.1) {}
+	com_radius(0.1),
+	joint_radius(0.06),
+	joint_length(0.2) {}
     
     float long_cone_length;
     float long_cone_base;
@@ -54,6 +56,8 @@ namespace playtao {
     float short_cone_base;
     float link_radius;
     float com_radius;
+    float joint_radius;
+    float joint_length;
   };
   
   
@@ -70,7 +74,10 @@ namespace playtao {
 		  IPv4, or AF_INET6 for IPv6 */
 	      int ai_family = AF_UNSPEC) throw(std::runtime_error);
     
-    void tryReceive(gfx_param_s & gfx_param) throw(std::runtime_error);
+    /**
+       \return true if new data arrived, false if not, throws an exception on error.
+    */
+    bool tryReceive(gfx_param_s & gfx_param) throw(std::runtime_error);
     
   protected:    
     std::string port_;

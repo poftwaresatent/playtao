@@ -122,7 +122,7 @@ namespace playtao {
   }
   
   
-  void UDPGfxParam::
+  bool UDPGfxParam::
   tryReceive(gfx_param_s & gfx_param) throw(std::runtime_error)
   {
     if ( ! buffer_) {
@@ -135,7 +135,7 @@ namespace playtao {
     nread = recv(udp_sock_fd_, &peek, 1, MSG_PEEK | MSG_DONTWAIT);
     if (-1 == nread) {
       if ((EAGAIN == errno) || (EWOULDBLOCK == errno)) {
-	return;
+	return false;
       }
       ostringstream msg;
       msg << "playtao::UDPGfxParam::tryReceive(): peek [recv()] failed: " << strerror(errno);
@@ -162,6 +162,10 @@ namespace playtao {
     gfx_param.short_cone_base = buffer_[3];
     gfx_param.link_radius = buffer_[4];
     gfx_param.com_radius = buffer_[5];
+    gfx_param.joint_radius = buffer_[6];
+    gfx_param.joint_length = buffer_[7];
+    
+    return true;
   }
   
 }
