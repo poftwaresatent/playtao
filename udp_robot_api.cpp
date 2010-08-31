@@ -126,7 +126,7 @@ namespace playtao {
     }
     
     close(udp_sock_fd_);
-    delete[] buffer_;
+    free(buffer_);
     
     buf_npos_ = 0;
     buf_nvel_ = 0;

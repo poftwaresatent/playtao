@@ -25,6 +25,7 @@
 */
 
 #include "udp_robot_api.hpp"
+#include "udp_gfx_param.hpp"
 
 #include <jspace/Model.hpp>
 #include <jspace/RobotAPI.hpp>
@@ -61,6 +62,8 @@ using namespace std;
 static boost::shared_ptr<jspace::Model> model;
 static boost::shared_ptr<jspace::RobotAPI> robot_api;
 static GLUquadricObj * qobj(0);
+static playtao::UDPGfxParam udp_gfx_param;
+static playtao::gfx_param_s gfx_param;
 
 static size_t tick(0);
 static trackball_state * trackball;
@@ -74,7 +77,8 @@ static int verbosity(0);
 static string sai_filename("");
 static int n_iterations(-1);	// -1 means graphics mode, user presses 'q' to quit
 static unsigned int gfx_timer_ms(20);
-static std::string udp_port("3589");
+static std::string udp_robot_port("3589");
+static std::string udp_gfx_port("2763");
 
 static void usage(ostream & os);
 static void parse_options(int argc, char ** argv);
@@ -107,8 +111,10 @@ int main(int argc, char ** argv)
   
   try {
     playtao::UDPRobotAPI * robot(new playtao::UDPRobotAPI());
-    robot->init(udp_port);
+    robot->init(udp_robot_port);
     robot_api.reset(robot);
+    
+    udp_gfx_param.init(udp_gfx_port);
     
     model.reset(load_model());
     
@@ -302,6 +308,14 @@ void add_node_command(taoDNode * node, double const * tau)
 
 bool update()
 {
+  try {
+    udp_gfx_param.tryReceive(gfx_param);
+  }
+  catch (std::runtime_error const & ee) {
+    cerr << "update(): udp_gfx_param.tryReceive() failed: " << ee.what() << "\n";
+    return false;
+  }
+  
   jspace::State state;
   size_t const ndof(model->getNDOF());
   
@@ -434,33 +448,36 @@ static void draw_tree(taoDNode /*const*/ * node)
   vp_tao.UpdateBounds(p0[0], p0[1], p0[2]);
   if (true) {
     deFrame foo;
-    foo.translation()[0] = 0.4;
+    foo.translation()[0] = gfx_param.short_cone_length;
     foo.translation()[1] = 0;
     foo.translation()[2] = 0;
     deFrame px;
     px.multiply(*node->frameGlobal(), foo);
     foo.translation()[0] = 0;
-    foo.translation()[1] = 0.4;
+    foo.translation()[1] = gfx_param.short_cone_length;
     foo.translation()[2] = 0;
     deFrame py;
     py.multiply(*node->frameGlobal(), foo);
     foo.translation()[0] = 0;
     foo.translation()[1] = 0;
-    foo.translation()[2] = 0.4;
+    foo.translation()[2] = gfx_param.short_cone_length;
     deFrame pz;
     pz.multiply(*node->frameGlobal(), foo);
     glColor3d(1, 0, 0);
     draw_pipe(p0, Eigen::Vector3d(px.translation()[0],
 				  px.translation()[1],
-				  px.translation()[2]), 0.1, 0);
+				  px.translation()[2]),
+	      gfx_param.short_cone_base, 0);
     glColor3d(0, 1, 0);
     draw_pipe(p0, Eigen::Vector3d(py.translation()[0],
 				  py.translation()[1],
-				  py.translation()[2]), 0.1, 0);
+				  py.translation()[2]),
+	      gfx_param.short_cone_base, 0);
     glColor3d(0, 0, 1);
     draw_pipe(p0, Eigen::Vector3d(pz.translation()[0],
 				  pz.translation()[1],
-				  pz.translation()[2]), 0.1, 0);
+				  pz.translation()[2]),
+	      gfx_param.short_cone_base, 0);
   }
   
   taoDNode /*const*/ * parent(node->getDParent());
@@ -480,7 +497,7 @@ static void draw_tree(taoDNode /*const*/ * node)
 			      parent->frameGlobal()->translation()[1],
 			      parent->frameGlobal()->translation()[2]),
 	      p0,
-	      0.05, 0.05);
+	      gfx_param.link_radius, gfx_param.link_radius);
   }
   
   if (node->center()) {
@@ -507,13 +524,13 @@ static void draw_tree(taoDNode /*const*/ * node)
 	      Eigen::Vector3d(com.translation()[0],
 			      com.translation()[1],
 			      com.translation()[2]),
-	      0.1, 0);
+	      gfx_param.short_cone_base, 0);
     
     // sphere on COM
     glMatrixMode(GL_MODELVIEW);
     glPushMatrix();
     glTranslated(p1[0], p1[1], p1[2]);
-    glutSolidSphere(0.1, 20, 16);
+    glutSolidSphere(gfx_param.com_radius, 20, 16);
     glPopMatrix();
   }
   
@@ -530,11 +547,11 @@ static void draw_transform(jspace::Transform const & gframe)
   glPushMatrix();
   glMultMatrixd(gframe.matrix().data());
   glColor3d(1, 0, 0);
-  draw_pipe(Eigen::Vector3d::Zero(), Eigen::Vector3d(0.4, 0, 0), 0.1, 0);
+  draw_pipe(Eigen::Vector3d::Zero(), Eigen::Vector3d(gfx_param.short_cone_length, 0, 0), gfx_param.short_cone_base, 0);
   glColor3d(0, 1, 0);
-  draw_pipe(Eigen::Vector3d::Zero(), Eigen::Vector3d(0, 0.4, 0), 0.1, 0);
+  draw_pipe(Eigen::Vector3d::Zero(), Eigen::Vector3d(0, gfx_param.short_cone_length, 0), gfx_param.short_cone_base, 0);
   glColor3d(0, 0, 1);
-  draw_pipe(Eigen::Vector3d::Zero(), Eigen::Vector3d(0, 0, 0.4), 0.1, 0);
+  draw_pipe(Eigen::Vector3d::Zero(), Eigen::Vector3d(0, 0, gfx_param.short_cone_length), gfx_param.short_cone_base, 0);
   glPopMatrix();
 }
 
@@ -555,7 +572,7 @@ static void draw_jspace(jspace::Model const & model)
       glMatrixMode(GL_MODELVIEW);
       glPushMatrix();
       glTranslated(gframe.translation().x(), gframe.translation().y(), gframe.translation().z());
-      glutSolidSphere(0.1, 20, 16);
+      glutSolidSphere(gfx_param.com_radius, 20, 16);
       glPopMatrix();
     }
   }
@@ -565,11 +582,17 @@ static void draw_jspace(jspace::Model const & model)
 static void draw_global_axes()
 {
   glColor3d(1, 0, 0);
-  draw_pipe(Eigen::Vector3d::Zero(), Eigen::Vector3d(1, 0, 0), 0, 0.05);
+  draw_pipe(Eigen::Vector3d::Zero(),
+	    Eigen::Vector3d(gfx_param.long_cone_length, 0, 0),
+	    0, gfx_param.long_cone_base);
   glColor3d(0, 1, 0);
-  draw_pipe(Eigen::Vector3d::Zero(), Eigen::Vector3d(0, 1, 0), 0, 0.05);
+  draw_pipe(Eigen::Vector3d::Zero(),
+	    Eigen::Vector3d(0, gfx_param.long_cone_length, 0),
+	    0, gfx_param.long_cone_base);
   glColor3d(0, 0, 1);
-  draw_pipe(Eigen::Vector3d::Zero(), Eigen::Vector3d(0, 0, 1), 0, 0.05);
+  draw_pipe(Eigen::Vector3d::Zero(),
+	    Eigen::Vector3d(0, 0, gfx_param.long_cone_length),
+	    0, gfx_param.long_cone_base);
 }
 
 
