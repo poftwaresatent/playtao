@@ -111,10 +111,6 @@ int main(int argc, char ** argv)
   //  vp_jspace.MimicBounds(&vp_tao);
   
   try {
-    playtao::UDPRobotAPI * robot(new playtao::UDPRobotAPI());
-    robot->init(udp_robot_port);
-    robot_api.reset(robot);
-    
     udp_gfx_param.init(udp_gfx_port);
     gfx_param.long_cone_length = 0.5;
     gfx_param.long_cone_base = 0.02;
@@ -126,6 +122,11 @@ int main(int argc, char ** argv)
     gfx_param.joint_length = 0.09;
     
     model.reset(load_model());
+    
+    size_t const ndof(model->getNDOF());
+    playtao::UDPRobotAPI * robot(new playtao::UDPRobotAPI(ndof, ndof, ndof));
+    robot->init(udp_robot_port);
+    robot_api.reset(robot);
     
     if (n_iterations < 0) {
       trackball = gltrackball_init();

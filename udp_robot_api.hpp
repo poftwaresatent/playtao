@@ -42,12 +42,18 @@ namespace playtao {
     : public jspace::RobotAPI
   {
   public:
-    UDPRobotAPI();
+    /** We used to allow the ndof to change in each message, but that
+	creates more confusion and runtime bugs than are worth that
+	added convenience. So now you have to specify the sizes at
+	construction time. */
+    UDPRobotAPI(uint64_t npos, uint64_t nvel, uint64_t nforce);
     virtual ~UDPRobotAPI();
     
     virtual jspace::Status readState(jspace::State & state);
     virtual jspace::Status writeCommand(jspace::Vector const & command);
     virtual void shutdown();
+    
+    void purge();
     
     void init(/** port specification, will get passed to
 		  getaddrinfo() */
@@ -67,6 +73,8 @@ namespace playtao {
     uint64_t * buf_npos_, * buf_nvel_, * buf_nforce_;
     float * pos_, * vel_, * force_;
     char * buffer_;
+    
+    bool initialized_;
   };
   
 }

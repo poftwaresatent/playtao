@@ -48,15 +48,18 @@ namespace playtao {
   
   
   UDPRobotAPI::
-  UDPRobotAPI()
+  UDPRobotAPI(uint64_t npos, uint64_t nvel, uint64_t nforce)
     : buf_npos_(0),
       buf_nvel_(0),
       buf_nforce_(0),
       pos_(0),
       vel_(0),
       force_(0),
-      buffer_(0)
+      buffer_(0),
+      initialized_(false)
   {
+    //// we used to resize on the fly, but that created confusion.
+    initBuffer(npos, nvel, nforce);
   }
   
   
@@ -64,6 +67,7 @@ namespace playtao {
   ~UDPRobotAPI()
   {
     shutdown();
+    free(buffer_);
   }
   
   
@@ -119,20 +123,20 @@ namespace playtao {
   void UDPRobotAPI::
   shutdown()
   {
-    if ( ! buffer_) {		// not initialized
-      return;
+    if (initialized_) {
+      close(udp_sock_fd_);
     }
-    
-    close(udp_sock_fd_);
-    free(buffer_);
-    
-    buf_npos_ = 0;
-    buf_nvel_ = 0;
-    buf_nforce_ = 0;
-    pos_ = 0;
-    vel_ = 0;
-    force_ = 0;
-    buffer_ = 0;
+    initialized_ = false;
+  }
+  
+  
+  void UDPRobotAPI::
+  purge()
+  {
+    if (initialized_) {
+      char trash[1024];
+      while (0 < recv(udp_sock_fd_, &trash, 1024, 0)) { /*nop*/ }
+    }
   }
   
   
@@ -140,7 +144,7 @@ namespace playtao {
   init(std::string const & port,
        int ai_family) throw(std::runtime_error)
   {
-    if (buffer_) {
+    if (initialized_) {
       throw runtime_error("playtao::UDPRobotAPI::init(): already initialized");
     }
     
@@ -182,7 +186,8 @@ namespace playtao {
       throw runtime_error(msg.str());
     }
     
-    initBuffer(0, 0, 0);
+    purge();
+    initialized_ = true;
   }
   
   
@@ -206,13 +211,23 @@ namespace playtao {
       throw runtime_error(msg.str());
     }
     
+    //// we used to resize on the fly, but that created confusion.
+    if ((peek.npos != npos_) || (peek.nvel != nvel_) || (peek.nforce != nforce_)) {
+      ostringstream msg;
+      msg << "playtao::UDPRobotAPI::receiveState(): size mismatch:  npos: want " << npos_ << " got " << peek.npos
+	  << "  nvel: want " << nvel_ << " got " << peek.nvel << "  nforce: want " << nforce_ << " got "
+	  << peek.nforce;
+      throw runtime_error(msg.str());
+    }
+    
 #ifdef DEBUG
     fprintf(stderr, "receiving  npos: %zu  nvel: %zu  nforce: %zu\n",
 	    (size_t) peek.npos, (size_t) peek.nvel, (size_t) peek.nforce);
 #endif // DEBUG
-
-    // resize buffer if required, based on the received header data
-    initBuffer(peek.npos, peek.nvel, peek.nforce);
+    
+    //// we used to resize on the fly, but that created confusion.
+    //     // resize buffer if required, based on the received header data
+    //     initBuffer(peek.npos, peek.nvel, peek.nforce);
     
     // read the entire message
     nread = recv(udp_sock_fd_, buffer_, nbytes_, 0);
