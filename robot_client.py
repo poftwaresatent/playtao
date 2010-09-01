@@ -60,7 +60,7 @@ class BunchOfSliders(Tix.Frame):
             pos.pack(side = Tix.LEFT, expand = True, fill = Tix.X)
             vel = Slider(frame, self, 'vel %d' % ii, ii + ndof, 'rad', -math.pi, math.pi, 0)
             vel.pack(side = Tix.LEFT, expand = True, fill = Tix.X)
-            force = Slider(frame, self, 'torque %d' % ii, ii + 2 * ndof, '%', -200, 200, 0)
+            force = Slider(frame, self, 'com_delta %d' % ii, ii + 2 * ndof, '%', -100, 100, 0)
             force.pack(side = Tix.LEFT, expand = True, fill = Tix.X)
             frame.pack(side = Tix.TOP, expand = True, fill = Tix.X)
             self.data.append(0)

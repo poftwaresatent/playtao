@@ -588,12 +588,15 @@ static void draw_tree(taoDNode /*const*/ * node)
 	glColor3d(1, 1, 1);
       }
       else {
-	double const force(fabs(jspace_state->force_[node->getID()]));
-	if (force < 1.0) {
-	  glColor3d(0.5 + force / 2, 1, 1 - force);
+	double const com_delta(jspace_state->force_[node->getID()]);
+	if (fabs(com_delta) < 0.1) {
+	  glColor3d(0.5 + fabs(com_delta) / 0.2, 1, 1 - 10 * fabs(com_delta));
 	}
-	else if (force < 2.0) {
-	  glColor3d(1, 0, force - 1);
+	else if (fabs(com_delta) < 1.0) {
+	  glColor3d(1, 0, 0.5 + 0.5 * com_delta);
+	}
+	else if (com_delta < 0) {
+	  glColor3d(1, 0, 0);
 	}
 	else {
 	  glColor3d(1, 0, 1);
