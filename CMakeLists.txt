@@ -15,6 +15,42 @@ project (playtao)
 #set (CMAKE_VERBOSE_MAKEFILE ON)
 #set (CMAKE_BUILD_TYPE Debug)
 
+##################################################
+# OS detection
+
+if (WIN32)
+  add_definitions (-DWIN32)
+else (WIN32)
+  if (APPLE)
+    add_definitions (-DOSX)
+    include_directories (
+      /opt/local/include
+      /opt/local/include/eigen2
+      )
+    list (APPEND CMAKE_REQUIRED_INCLUDES
+      /opt/local/include
+      /opt/local/include/eigen2
+      )
+    link_directories (/opt/local/lib)
+  endif (APPLE)
+  if (CMAKE_SYSTEM_NAME MATCHES Linux)
+    add_definitions (-DLINUX)
+    include_directories (/usr/include/eigen2)
+    list (APPEND CMAKE_REQUIRED_INCLUDES /usr/include/eigen2)
+  endif (CMAKE_SYSTEM_NAME MATCHES Linux)
+  if (CMAKE_SYSTEM_NAME MATCHES OpenBSD)
+    add_definitions (-DOPENBSD)
+    include_directories (
+      /usr/local/include
+      /usr/local/include/eigen2
+      )
+    list (APPEND CMAKE_REQUIRED_INCLUDES /usr/include/eigen2)
+    link_directories (/usr/local/lib)
+  endif (CMAKE_SYSTEM_NAME MATCHES OpenBSD)
+endif(WIN32)
+
+##################################################
+
 include (CheckCXXCompilerFlag)
 check_cxx_compiler_flag (-pipe CXX_FLAG_pipe)
 if (CXX_FLAG_pipe)
@@ -57,39 +93,6 @@ endif (NOT GLUT_FOUND)
 
 include (CheckIncludeFileCXX)
 
-if (NOT JSPACE_DIR)
-  set (JSPACE_DIR $ENV{JSPACE_DIR})
-endif (NOT JSPACE_DIR)
-if (JSPACE_DIR)
-  message ("using JSPACE_DIR ${JSPACE_DIR}")
-  list (APPEND CMAKE_REQUIRED_INCLUDES ${JSPACE_DIR}/include ${JSPACE_DIR} ${JSPACE_DIR}/jspace)
-  include_directories (${JSPACE_DIR}/include ${JSPACE_DIR} ${JSPACE_DIR}/jspace)
-  link_directories (${JSPACE_DIR}/lib ${JSPACE_DIR} ${JSPACE_DIR}/jspace
-    ${JSPACE_DIR}/build ${JSPACE_DIR}/build/jspace)
-endif (JSPACE_DIR)
-#check_include_file_cxx (jspace/Model.hpp HAVE_JSPACE)
-#if (${HAVE_JSPACE})
-#  message ("found jspace")
-#else (${HAVE_JSPACE})
-#  message (FATAL_ERROR "jspace not found, try passing -DJSPACE_DIR:path=/path/to/jspace")
-#endif (${HAVE_JSPACE})
-
-if (NOT TAO_DIR)
-  set (TAO_DIR $ENV{TAO_DIR})
-endif (NOT TAO_DIR)
-if (TAO_DIR)
-  message ("using TAO_DIR ${TAO_DIR}")
-  list (APPEND CMAKE_REQUIRED_INCLUDES ${TAO_DIR}/include ${TAO_DIR} ${TAO_DIR}/tao)
-  include_directories (${TAO_DIR}/include ${TAO_DIR} ${TAO_DIR}/tao)
-  link_directories (${TAO_DIR}/lib ${TAO_DIR} ${TAO_DIR}/tao)
-endif (TAO_DIR)
-#check_include_file_cxx (tao/dynamics/taoNode.h HAVE_TAO)
-#if (${HAVE_TAO})
-#  message ("found tao")
-#else (${HAVE_TAO})
-#  message (FATAL_ERROR "tao not found, try passing -DTAO_DIR:path=/path/to/tao")
-#endif (${HAVE_TAO})
-
 if (NOT EIGEN2_DIR)
   set (EIGEN2_DIR $ENV{EIGEN2_DIR})
 endif (NOT EIGEN2_DIR)
@@ -112,6 +115,39 @@ if (${HAVE_EIGEN2})
 else (${HAVE_EIGEN2})
   message (FATAL_ERROR "Eigen not found. Install it in a system location (e.g. `sudo apt-get install libeigen2-dev') or pass -DEIGEN2_DIR:path=/path/to/eigen2 to cmake.")
 endif (${HAVE_EIGEN2})
+
+if (NOT JSPACE_DIR)
+  set (JSPACE_DIR $ENV{JSPACE_DIR})
+endif (NOT JSPACE_DIR)
+if (JSPACE_DIR)
+  message ("using JSPACE_DIR ${JSPACE_DIR}")
+  list (APPEND CMAKE_REQUIRED_INCLUDES ${JSPACE_DIR}/include ${JSPACE_DIR} ${JSPACE_DIR}/jspace)
+  include_directories (${JSPACE_DIR}/include ${JSPACE_DIR} ${JSPACE_DIR}/jspace)
+  link_directories (${JSPACE_DIR}/lib ${JSPACE_DIR} ${JSPACE_DIR}/jspace
+    ${JSPACE_DIR}/build ${JSPACE_DIR}/build/jspace)
+endif (JSPACE_DIR)
+check_include_file_cxx (jspace/Model.hpp HAVE_JSPACE)
+if (${HAVE_JSPACE})
+  message ("found jspace")
+else (${HAVE_JSPACE})
+  message (FATAL_ERROR "jspace not found, try passing -DJSPACE_DIR:path=/path/to/jspace")
+endif (${HAVE_JSPACE})
+
+if (NOT TAO_DIR)
+  set (TAO_DIR $ENV{TAO_DIR})
+endif (NOT TAO_DIR)
+if (TAO_DIR)
+  message ("using TAO_DIR ${TAO_DIR}")
+  list (APPEND CMAKE_REQUIRED_INCLUDES ${TAO_DIR}/include ${TAO_DIR} ${TAO_DIR}/tao)
+  include_directories (${TAO_DIR}/include ${TAO_DIR} ${TAO_DIR}/tao)
+  link_directories (${TAO_DIR}/lib ${TAO_DIR} ${TAO_DIR}/tao)
+endif (TAO_DIR)
+check_include_file_cxx (tao/dynamics/taoNode.h HAVE_TAO)
+if (${HAVE_TAO})
+  message ("found tao")
+else (${HAVE_TAO})
+  message (FATAL_ERROR "tao not found, try passing -DTAO_DIR:path=/path/to/tao")
+endif (${HAVE_TAO})
 
 include_directories (
   .
