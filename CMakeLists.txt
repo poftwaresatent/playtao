@@ -96,37 +96,36 @@ else (${HAVE_EIGEN2})
   message (FATAL_ERROR "Eigen not found. Install it in a system location (e.g. `sudo apt-get install libeigen2-dev') or pass -DEIGEN2_DIR:path=/path/to/eigen2 to cmake.")
 endif (${HAVE_EIGEN2})
 
-if (NOT JSPACE_DIR)
-  set (JSPACE_DIR $ENV{JSPACE_DIR})
-endif (NOT JSPACE_DIR)
-if (JSPACE_DIR)
-  message ("using JSPACE_DIR ${JSPACE_DIR}")
-  list (APPEND CMAKE_REQUIRED_INCLUDES ${JSPACE_DIR}/include ${JSPACE_DIR} ${JSPACE_DIR}/jspace)
-  include_directories (${JSPACE_DIR}/include ${JSPACE_DIR} ${JSPACE_DIR}/jspace)
-  link_directories (${JSPACE_DIR}/lib ${JSPACE_DIR} ${JSPACE_DIR}/jspace
-    ${JSPACE_DIR}/build ${JSPACE_DIR}/build/jspace)
-endif (JSPACE_DIR)
+###########################################################
+# check for jspace and tao
+#
+# Instead of two separate paths with all kinds of checks (as before ca
+# 2011), just assume that if someone uses playtao, they also build
+# stanford_wbc form source. That's the single use case still around in
+# 2014 anyway.
+
+if (NOT WBC_DIR)
+  set (WBC_DIR $ENV{WBC_DIR})
+endif (NOT WBC_DIR)
+if (WBC_DIR)
+  message ("using WBC_DIR ${WBC_DIR}")
+  list (APPEND CMAKE_REQUIRED_INCLUDES ${WBC_DIR}/jspace ${WBC_DIR}/tao)
+  include_directories (${WBC_DIR}/jspace ${WBC_DIR}/tao)
+  link_directories (${WBC_DIR}/build/jspace ${WBC_DIR}/build/tao)
+endif (WBC_DIR)
+
 check_include_file_cxx (jspace/Model.hpp HAVE_JSPACE)
 if (${HAVE_JSPACE})
   message ("found jspace")
 else (${HAVE_JSPACE})
-  message (FATAL_ERROR "jspace not found, try passing -DJSPACE_DIR:path=/path/to/jspace")
+  message (FATAL_ERROR "jspace not found, try passing -DWBC_DIR:path=/path/to/stanford_wbc (assumes you have a build/ directory in there)")
 endif (${HAVE_JSPACE})
 
-if (NOT TAO_DIR)
-  set (TAO_DIR $ENV{TAO_DIR})
-endif (NOT TAO_DIR)
-if (TAO_DIR)
-  message ("using TAO_DIR ${TAO_DIR}")
-  list (APPEND CMAKE_REQUIRED_INCLUDES ${TAO_DIR}/include ${TAO_DIR} ${TAO_DIR}/tao)
-  include_directories (${TAO_DIR}/include ${TAO_DIR} ${TAO_DIR}/tao)
-  link_directories (${TAO_DIR}/lib ${TAO_DIR} ${TAO_DIR}/tao)
-endif (TAO_DIR)
 check_include_file_cxx (tao/dynamics/taoNode.h HAVE_TAO)
 if (${HAVE_TAO})
   message ("found tao")
 else (${HAVE_TAO})
-  message (FATAL_ERROR "tao not found, try passing -DTAO_DIR:path=/path/to/tao")
+  message (FATAL_ERROR "tao not found, try passing -DWBC_DIR:path=/path/to/stanford_wbc (assumes you have a build/ directory in there)")
 endif (${HAVE_TAO})
 
 include_directories (
